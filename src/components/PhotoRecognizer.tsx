@@ -10,9 +10,9 @@ export interface FoodFill {
   name: string;
   amount: string;
   calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
 }
 
 /** Remembers that the model has been downloaded once, so we stop warning about the download size. */

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { MEALS, type FoodEntry, type Meal, type NewFoodEntry } from "@/lib/entries";
+import { BarcodeScanner } from "./BarcodeScanner";
 import { PhotoRecognizer, type FoodFill } from "./PhotoRecognizer";
 
 function optionalNumber(value: string): number | undefined {
@@ -61,14 +62,19 @@ export function FoodForm({
     setName(fill.name);
     setAmount(fill.amount);
     setCalories(String(fill.calories));
-    setProtein(String(fill.protein));
-    setCarbs(String(fill.carbs));
-    setFat(String(fill.fat));
+    setProtein(fill.protein != null ? String(fill.protein) : "");
+    setCarbs(fill.carbs != null ? String(fill.carbs) : "");
+    setFat(fill.fat != null ? String(fill.fat) : "");
   }
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-      {!initial && <PhotoRecognizer onPick={fillFromPhoto} />}
+      {!initial && (
+        <div className="flex flex-col gap-2">
+          <PhotoRecognizer onPick={fillFromPhoto} />
+          <BarcodeScanner onPick={fillFromPhoto} />
+        </div>
+      )}
 
       <div className="grid grid-cols-4 gap-1 rounded-xl bg-[var(--surface-hover)] p-1" role="radiogroup" aria-label="Meal">
         {MEALS.map((m) => (

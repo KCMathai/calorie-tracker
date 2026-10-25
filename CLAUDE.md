@@ -19,7 +19,10 @@ A personal calorie counter and diet tracker. Mobile-first web app.
   `onnx-community/swin-finetuned-food101-ONNX` (Apache-2.0, q8 ≈ 93 MB, downloaded once and cached by the browser).
   It knows the 101 Food-101 dishes only; the user picks a guess and a portion, and nutrition comes from the
   built-in table in `src/lib/foodNutrition.ts` (estimates). Unknown dishes → type it in.
-- **Barcode scanning:** packaged foods via the free Open Food Facts database.
+- **Barcode scanning:** `src/components/BarcodeScanner.tsx` — live camera, photo of a barcode, or typed number.
+  Uses the native `BarcodeDetector` when it supports EAN/UPC, else the `barcode-detector` ponyfill (ZXing WASM).
+  The WASM is self-hosted at `/zxing/zxing_reader.wasm`, copied from node_modules by the `postinstall` script
+  (`public/zxing/` is gitignored). Lookups go through `/api/barcode` → Open Food Facts v2 (ODbL; ~15 reads/min/IP).
 - **Alerts:** in-app only for v1 (over-limit warning, under-target banner in the evening). Phone push notifications are a possible v2.
 - **Retention:** food logs are kept 30 days (nightly Apps Script cleanup + local pruning). Preferences and weight are kept forever.
 - **Calorie target:** Mifflin-St Jeor BMR × activity factor, adjusted for goal; user can override. Metric units (cm, kg).
