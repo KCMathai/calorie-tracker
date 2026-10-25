@@ -4,6 +4,7 @@ import { dayKey, entriesStore, withinRetention, type FoodEntry, type Meal } from
 import { profileStore } from "./profile";
 import { createStore } from "./store";
 import type { Profile } from "./types";
+import { weightsStore, type WeightEntry } from "./weights";
 
 /**
  * Sync with Google Sheets.
@@ -18,12 +19,15 @@ export type SyncOp =
   | { type: "setPref"; key: "profile"; value: Profile }
   | { type: "setPref"; key: "alerts"; value: AlertSettings }
   | { type: "upsertEntry"; entry: FoodEntry }
-  | { type: "deleteEntry"; id: string };
+  | { type: "deleteEntry"; id: string }
+  | { type: "upsertWeight"; weight: WeightEntry }
+  | { type: "deleteWeight"; id: string };
 
 interface SheetState {
   ok: true;
   prefs: { profile?: Profile; alerts?: AlertSettings };
   entries: Record<string, string | number>[];
+  weights?: Record<string, string | number>[];
 }
 
 const outboxStore = createStore<SyncOp[]>("calorie-tracker:outbox");
@@ -149,6 +153,10 @@ function queueLocalDataMissingFrom(sheet: SheetState) {
   for (const entry of withinRetention(entriesStore.get() ?? [], dayKey(new Date()))) {
     if (!sheetIds.has(entry.id)) queue.push({ type: "upsertEntry", entry });
   }
+  const sheetWeightIds = new Set((sheet.weights ?? []).map((w) => String(w.id)));
+  for (const weight of weightsStore.get() ?? []) {
+    if (!sheetWeightIds.has(weight.id)) queue.push({ type: "upsertWeight", weight });
+  }
   if (queue.length) outboxStore.set([...(outboxStore.get() ?? []), ...queue]);
 }
 
@@ -157,6 +165,14 @@ function applySheetState(sheet: SheetState) {
   setIfChanged(alertsStore, sheet.prefs.alerts ?? null);
   const entries = sheet.entries.map(toEntry).filter((e): e is FoodEntry => e !== null);
   setIfChanged(entriesStore, withinRetention(entries, dayKey(new Date())));
+  const weights = (sheet.weights ?? []).map(toWeight).filter((w): w is WeightEntry => w !== null);
+  setIfChanged(weightsStore, weights);
+}
+
+function toWeight(row: Record<string, string | number>): WeightEntry | null {
+  const kg = Number(row.weightKg);
+  if (!row.id || !row.date || !Number.isFinite(kg)) return null;
+  return { id: String(row.id), date: String(row.date), weightKg: kg, createdAt: Number(row.createdAt) || 0 };
 }
 
 function toEntry(row: Record<string, string | number>): FoodEntry | null {

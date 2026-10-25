@@ -24,6 +24,10 @@ A personal calorie counter and diet tracker. Mobile-first web app.
   The WASM is self-hosted at `/zxing/zxing_reader.wasm`, copied from node_modules by the `postinstall` script
   (`public/zxing/` is gitignored). Lookups go through `/api/barcode` → Open Food Facts v2 (ODbL; ~15 reads/min/IP).
 - **Alerts:** in-app only for v1 (over-limit warning, under-target banner in the evening). Phone push notifications are a possible v2.
+- **History & weight:** `/history` — 7/30-day calorie chart vs target, day-by-day list, weigh-ins (one per day,
+  `src/lib/weights.ts`). The latest weigh-in updates the profile weight and, unless the target is custom, the
+  daily target. Charts are hand-written SVG in `src/components/charts.tsx`; one validated green (`--chart`) for
+  marks in both themes, and "over target" is shown with ▲ + text, never red-vs-green.
 - **Retention:** food logs are kept 30 days (nightly Apps Script cleanup + local pruning). Preferences and weight are kept forever.
 - **Calorie target:** Mifflin-St Jeor BMR × activity factor, adjusted for goal; user can override. Metric units (cm, kg).
 
