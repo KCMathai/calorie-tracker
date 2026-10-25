@@ -17,6 +17,15 @@ export const GOAL_OPTIONS: { value: Goal; label: string; hint: string; adjust: n
 /** Commonly cited minimums for unsupervised diets. */
 export const MIN_SAFE_CALORIES: Record<Sex, number> = { female: 1200, male: 1500 };
 
+/** Suggested daily grams for a balanced 25% protein / 50% carbs / 25% fat split. */
+export function macroTargets(calorieTarget: number) {
+  return {
+    protein: Math.round((calorieTarget * 0.25) / 4),
+    carbs: Math.round((calorieTarget * 0.5) / 4),
+    fat: Math.round((calorieTarget * 0.25) / 9),
+  };
+}
+
 /** Basal metabolic rate (calories burned at rest), Mifflin-St Jeor equation. */
 export function bmr(sex: Sex, age: number, heightCm: number, weightKg: number): number {
   const base = 10 * weightKg + 6.25 * heightCm - 5 * age;

@@ -9,6 +9,10 @@
   --muted: #6b7068;
   --accent: #16a34a;
   --accent-soft: #e8f6ec;
+  --danger: #dc2626;
+  --danger-soft: #fdecec;
+  --warning: #b45309;
+  --warning-soft: #fdf3e2;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -21,6 +25,10 @@
     --muted: #9aa197;
     --accent: #4ade80;
     --accent-soft: #14281a;
+    --danger: #f87171;
+    --danger-soft: #2a1414;
+    --warning: #fbbf24;
+    --warning-soft: #2a2010;
   }
 }
 
@@ -52,5 +60,11 @@ body {
   }
   .btn-primary {
     @apply rounded-xl bg-[var(--accent)] px-4 py-3 font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 dark:text-black;
+  }
+  .btn-secondary {
+    @apply rounded-xl border border-[var(--border)] px-4 py-3 font-semibold hover:bg-[var(--surface-hover)];
+  }
+  .icon-btn {
+    @apply grid size-9 shrink-0 place-items-center rounded-lg text-lg hover:bg-[var(--surface-hover)] disabled:opacity-30 disabled:hover:bg-transparent;
   }
 }

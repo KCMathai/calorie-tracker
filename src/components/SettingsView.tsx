@@ -1,6 +1,7 @@
 "use client";
 
 import { profileStore } from "@/lib/profile";
+import { AlertSettingsForm } from "./AlertSettingsForm";
 import { GoalForm } from "./GoalForm";
 
 export function SettingsView() {
@@ -9,12 +10,13 @@ export function SettingsView() {
   if (profile === undefined) return <p className="text-muted">Loading…</p>;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       <header>
         <h1 className="text-2xl font-semibold">Settings</h1>
-        <p className="text-muted">Update your details and daily calorie target.</p>
+        <p className="text-muted">Update your details, daily calorie target and alerts.</p>
       </header>
       <GoalForm initial={profile} />
+      <AlertSettingsForm />
     </div>
   );
 }
