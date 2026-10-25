@@ -1,8 +1,27 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
+  --background: #f7f8f6;
   --foreground: #171717;
+  --surface: #ffffff;
+  --surface-hover: #f0f2ee;
+  --border: #e3e6e0;
+  --muted: #6b7068;
+  --accent: #16a34a;
+  --accent-soft: #e8f6ec;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0b0d0b;
+    --foreground: #ededed;
+    --surface: #151915;
+    --surface-hover: #1c211c;
+    --border: #2a302a;
+    --muted: #9aa197;
+    --accent: #4ade80;
+    --accent-soft: #14281a;
+  }
 }
 
 @theme inline {
@@ -12,15 +31,26 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4;
+  }
+  .label {
+    @apply text-sm font-medium;
+  }
+  .text-muted {
+    color: var(--muted);
+  }
+  .field {
+    @apply rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 focus-within:border-[var(--accent)];
+  }
+  .btn-primary {
+    @apply rounded-xl bg-[var(--accent)] px-4 py-3 font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 dark:text-black;
+  }
 }
