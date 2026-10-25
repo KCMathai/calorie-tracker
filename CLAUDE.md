@@ -5,7 +5,8 @@
 A personal calorie counter and diet tracker. Mobile-first web app.
 
 ## Stack
-- Next.js 16 (App Router, `src/` dir, Cache Components on) + TypeScript + Tailwind CSS v4
+- Next.js 16 (App Router, `src/` dir, Cache Components on) + TypeScript + Tailwind CSS v4 via `@tailwindcss/postcss`
+  (not `@tailwindcss/turbopack`, which served stale CSS on this machine)
 - Database: a Google Sheet owned by kevincmathews20112003@gmail.com, reached through a
   Google Apps Script web app (`google-apps-script/Code.gs`). Setup: `docs/GOOGLE-SHEETS-SETUP.md`.
 - `/api/sync` relays to Apps Script; secrets live in `.env.local` (`SHEETS_WEBAPP_URL`, `SHEETS_SECRET`, `APP_PASSCODE`)
@@ -30,11 +31,6 @@ A personal calorie counter and diet tracker. Mobile-first web app.
 - If you change `Code.gs`, the owner must paste it again and redeploy (Manage deployments → new version).
 - Keep it simple and mobile-friendly; support light and dark mode.
 - Health numbers are estimates — say so in the UI; never present them as medical advice.
-
-## Known issue: stale CSS in dev
-On this machine Turbopack sometimes keeps serving an old copy of `src/app/globals.css`
-after it is edited (even across restarts). Fix: stop the dev server, delete `.next/`, start again.
-After editing globals.css, verify the served CSS actually contains the change.
 
 ## Working with the owner
 - The owner is a beginner: explain changes in plain language.
