@@ -9,6 +9,7 @@ import { AlertBanner } from "./AlertBanner";
 import { GoalForm } from "./GoalForm";
 import { MealList } from "./MealList";
 import { ProgressRing } from "./ProgressRing";
+import { SyncBadge } from "./SyncBadge";
 
 export function TodayView() {
   const now = useNow();
@@ -41,6 +42,7 @@ export function TodayView() {
         <p className="text-sm text-muted">{now.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}</p>
       </header>
 
+      <SyncBadge />
       <AlertBanner eaten={sum.calories} target={target} />
 
       <section className="card flex flex-col items-center gap-4">

@@ -2,19 +2,8 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import {
-  addEntry,
-  dayKey,
-  deleteEntry,
-  entriesFor,
-  entriesStore,
-  formatDay,
-  shiftDay,
-  totals,
-  updateEntry,
-  type FoodEntry,
-  type Meal,
-} from "@/lib/entries";
+import { addEntry, deleteEntry, updateEntry } from "@/lib/actions";
+import { dayKey, entriesFor, entriesStore, formatDay, shiftDay, totals, type FoodEntry, type Meal } from "@/lib/entries";
 import { profileStore } from "@/lib/profile";
 import { useNow } from "@/lib/useNow";
 import { AlertBanner } from "./AlertBanner";

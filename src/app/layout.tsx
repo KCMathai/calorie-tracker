@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { BottomNav } from "@/components/BottomNav";
+import { SyncProvider } from "@/components/SyncProvider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full">
         <main className="mx-auto w-full max-w-md px-4 pt-6 pb-28">{children}</main>
         <BottomNav />
+        <SyncProvider />
       </body>
     </html>
   );

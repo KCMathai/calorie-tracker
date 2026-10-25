@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ACTIVITY_OPTIONS, GOAL_OPTIONS, MIN_SAFE_CALORIES, suggestedTarget } from "@/lib/calories";
-import { profileStore } from "@/lib/profile";
+import { saveProfile } from "@/lib/actions";
 import type { ActivityLevel, Goal, Profile, Sex } from "@/lib/types";
 
 const LIMITS = {
@@ -39,7 +39,7 @@ export function GoalForm({ initial, onSaved }: { initial?: Profile | null; onSav
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!bodyValid || finalTarget === null) return;
-    profileStore.set({ sex, activity, goal, ...nums, calorieTarget: Math.round(finalTarget), customTarget });
+    saveProfile({ sex, activity, goal, ...nums, calorieTarget: Math.round(finalTarget), customTarget });
     setSaved(true);
     onSaved?.();
   }

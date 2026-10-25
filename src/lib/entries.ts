@@ -64,17 +64,10 @@ export function totals(entries: FoodEntry[]) {
   );
 }
 
-export function addEntry(entry: NewFoodEntry) {
-  const all = entriesStore.get() ?? [];
-  entriesStore.set([...all, { ...entry, id: crypto.randomUUID(), createdAt: Date.now() }]);
-}
+/** Food logs are kept for this many days (matches the Google Sheets cleanup). */
+export const LOG_RETENTION_DAYS = 30;
 
-export function updateEntry(id: string, changes: NewFoodEntry) {
-  const all = entriesStore.get() ?? [];
-  entriesStore.set(all.map((e) => (e.id === id ? { ...e, ...changes } : e)));
-}
-
-export function deleteEntry(id: string) {
-  const all = entriesStore.get() ?? [];
-  entriesStore.set(all.filter((e) => e.id !== id));
+export function withinRetention(entries: FoodEntry[], todayKey: string): FoodEntry[] {
+  const cutoff = shiftDay(todayKey, -LOG_RETENTION_DAYS);
+  return entries.filter((e) => e.date >= cutoff);
 }

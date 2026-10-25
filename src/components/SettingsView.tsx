@@ -3,6 +3,7 @@
 import { profileStore } from "@/lib/profile";
 import { AlertSettingsForm } from "./AlertSettingsForm";
 import { GoalForm } from "./GoalForm";
+import { SyncSettings } from "./SyncSettings";
 
 export function SettingsView() {
   const profile = profileStore.useValue();
@@ -17,6 +18,7 @@ export function SettingsView() {
       </header>
       <GoalForm initial={profile} />
       <AlertSettingsForm />
+      <SyncSettings />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { saveAlerts } from "@/lib/actions";
 import { alertsStore, DEFAULT_ALERTS } from "@/lib/alerts";
 
 const HOURS = Array.from({ length: 24 }, (_, h) => h);
@@ -29,7 +30,7 @@ export function AlertSettingsForm() {
           <select
             className="field"
             value={settings.underHour}
-            onChange={(e) => alertsStore.set({ ...settings, underHour: Number(e.target.value) })}
+            onChange={(e) => saveAlerts({ ...settings, underHour: Number(e.target.value) })}
           >
             {HOURS.map((h) => (
               <option key={h} value={h}>
@@ -43,7 +44,7 @@ export function AlertSettingsForm() {
           <select
             className="field"
             value={settings.underPercent}
-            onChange={(e) => alertsStore.set({ ...settings, underPercent: Number(e.target.value) })}
+            onChange={(e) => saveAlerts({ ...settings, underPercent: Number(e.target.value) })}
           >
             {[50, 60, 70, 80, 90].map((p) => (
               <option key={p} value={p}>
