@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { MEALS, type FoodEntry, type Meal, type NewFoodEntry } from "@/lib/entries";
+import { PhotoRecognizer, type FoodFill } from "./PhotoRecognizer";
 
 function optionalNumber(value: string): number | undefined {
   if (value.trim() === "") return undefined;
@@ -56,8 +57,19 @@ export function FoodForm({
     }
   }
 
+  function fillFromPhoto(fill: FoodFill) {
+    setName(fill.name);
+    setAmount(fill.amount);
+    setCalories(String(fill.calories));
+    setProtein(String(fill.protein));
+    setCarbs(String(fill.carbs));
+    setFat(String(fill.fat));
+  }
+
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+      {!initial && <PhotoRecognizer onPick={fillFromPhoto} />}
+
       <div className="grid grid-cols-4 gap-1 rounded-xl bg-[var(--surface-hover)] p-1" role="radiogroup" aria-label="Meal">
         {MEALS.map((m) => (
           <button

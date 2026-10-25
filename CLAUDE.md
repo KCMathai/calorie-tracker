@@ -14,7 +14,11 @@ A personal calorie counter and diet tracker. Mobile-first web app.
 - Run: `npm run dev` → http://localhost:3000
 
 ## Decisions (agreed with the owner)
-- **Photo recognition:** runs fully in the browser (on-device model) — no paid AI APIs, photos never leave the device. It identifies the dish only; the user picks the portion size, and calories come from a free nutrition database.
+- **Photo recognition:** runs fully in the browser — no paid AI APIs, photos never leave the device.
+  Transformers.js (`@huggingface/transformers`) in a Web Worker (`src/lib/food-classifier.worker.ts`) with
+  `onnx-community/swin-finetuned-food101-ONNX` (Apache-2.0, q8 ≈ 93 MB, downloaded once and cached by the browser).
+  It knows the 101 Food-101 dishes only; the user picks a guess and a portion, and nutrition comes from the
+  built-in table in `src/lib/foodNutrition.ts` (estimates). Unknown dishes → type it in.
 - **Barcode scanning:** packaged foods via the free Open Food Facts database.
 - **Alerts:** in-app only for v1 (over-limit warning, under-target banner in the evening). Phone push notifications are a possible v2.
 - **Retention:** food logs are kept 30 days (nightly Apps Script cleanup + local pruning). Preferences and weight are kept forever.
