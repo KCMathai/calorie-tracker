@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { PasswordInput } from "./PasswordInput";
 import { passcodeStore, syncNow, usePendingCount, useSyncStatus, type SyncState } from "@/lib/sync";
 
 export const STATUS_TEXT: Record<SyncState, string> = {
@@ -49,14 +50,7 @@ export function SyncSettings() {
       >
         <label className="flex flex-1 flex-col gap-1">
           <span className="label">App passcode</span>
-          <input
-            className="field"
-            type="password"
-            autoComplete="off"
-            value={passcodeValue}
-            onChange={(e) => setPasscode(e.target.value)}
-            placeholder="Only needed if you set one"
-          />
+          <PasswordInput value={passcodeValue} onChange={setPasscode} placeholder="Only needed if you set one" />
         </label>
         <button type="submit" className="btn-secondary !py-2">
           Save & sync
