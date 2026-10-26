@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MEALS, type FoodEntry, type Meal, type NewFoodEntry } from "@/lib/entries";
 import { BarcodeScanner } from "./BarcodeScanner";
 import { teachFood } from "@/lib/actions";
@@ -37,6 +37,17 @@ export function FoodForm({
   const [photo, setPhoto] = useState<PhotoContext | null>(null);
   const [remember, setRemember] = useState(false);
   const [taught, setTaught] = useState<string | null>(null);
+  /** The user chose "None of these" and is typing the food in. */
+  const [typing, setTyping] = useState(false);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const [focusRequest, setFocusRequest] = useState(0);
+
+  // After "None of these": take the user straight to the name box (opens the keyboard on phones).
+  useEffect(() => {
+    if (focusRequest === 0) return;
+    nameRef.current?.focus({ preventScroll: true });
+    nameRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [focusRequest]);
 
   const caloriesNum = Number(calories);
   const valid = name.trim() !== "" && calories !== "" && Number.isFinite(caloriesNum) && caloriesNum >= 0 && caloriesNum <= 10000;
@@ -81,6 +92,7 @@ export function FoodForm({
       setFat("");
       setPhoto(null);
       setRemember(false);
+      setTyping(false);
     }
   }
 
@@ -103,17 +115,21 @@ export function FoodForm({
               setPhoto(p);
               setRemember(false); // a built-in guess was right; teaching is optional (e.g. after renaming)
               setTaught(null);
+              setTyping(false);
             }}
             onNoMatch={(p) => {
               setPhoto(p);
               setRemember(p !== null); // the app got it wrong: offer to learn it
               setTaught(null);
+              setTyping(true);
+              setFocusRequest((n) => n + 1); // the effect below moves to the name box
             }}
           />
           <BarcodeScanner
             onPick={(f) => {
               fill(f);
               setPhoto(null);
+              setTyping(false);
             }}
           />
         </div>
@@ -139,9 +155,23 @@ export function FoodForm({
         ))}
       </div>
 
+      {typing && (
+        <div className="rounded-xl border border-[var(--accent)] bg-[var(--accent-soft)] px-3 py-2 text-sm" role="status">
+          ✏️ <b>Tell the app what this is.</b> Type the food&apos;s name, amount and calories below, then tap <b>Add food</b>
+          {photo ? " — it will remember this dish for next time." : "."}
+        </div>
+      )}
+
       <label className="flex flex-col gap-1">
         <span className="label">Food</span>
-        <input className="field" placeholder="e.g. Banana" value={name} onChange={(e) => setName(e.target.value)} required />
+        <input
+          ref={nameRef}
+          className="field"
+          placeholder="e.g. Banana"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+        />
       </label>
 
       <div className="grid grid-cols-2 gap-3">

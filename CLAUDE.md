@@ -34,7 +34,13 @@ A personal calorie counter and diet tracker. Mobile-first web app.
   `src/lib/weights.ts`). The latest weigh-in updates the profile weight and, unless the target is custom, the
   daily target. Charts are hand-written SVG in `src/components/charts.tsx`; one validated green (`--chart`) for
   marks in both themes, and "over target" is shown with ▲ + text, never red-vs-green.
-- **Retention:** food logs are kept 30 days (nightly Apps Script cleanup + local pruning). Preferences and weight are kept forever.
+- **Retention:** food logs are kept 30 days (nightly Apps Script cleanup + local pruning). Preferences, weigh-ins
+  (with optional height), daily totals (`src/lib/dailyTotals.ts`, one row per day incl. that day's target) and taught
+  foods are kept forever. Daily totals are refreshed on every food change; days older than 30 are never recomputed.
+- **Passcode lock:** `src/components/AuthGate.tsx` shows only a lock screen until the device is unlocked (checked via
+  an empty `/api/sync`). A `bad_passcode` sync locks the device again. "Lock app on this device" clears all local data.
+- **Script versions:** the Apps Script returns `features` (v3+); `featureOf()` in `sync.ts` holds back ops the deployed
+  script can't store, and `replayOnDevice()` re-applies them after the sheet's copy replaces the device's.
 - **Calorie target:** Mifflin-St Jeor BMR × activity factor, adjusted for goal; user can override. Metric units (cm, kg).
 
 ## Code layout

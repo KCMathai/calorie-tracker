@@ -7,13 +7,17 @@
  * Tabs:
  *   Preferences — profile and alert settings (kept forever)
  *   FoodLog     — food entries (rows older than 30 days are deleted nightly)
- *   Weight      — weight entries (kept forever)
+ *   Weight      — weigh-ins with optional height (kept forever)
+ *   DailyTotals — one row per day: calories, macros and that day's target (kept forever)
  *   MyFoods     — foods you taught the photo recogniser (kept forever)
  *   MyFoodPhotos — visual fingerprints of your photos of those foods (kept forever)
  *
  * After pasting a new version of this file: Deploy → Manage deployments → ✏️ Edit →
  * Version: New version → Deploy (the web app URL stays the same).
  */
+
+/** Data the app can ask for. The app holds back changes for anything missing here. */
+var FEATURES = ['myFoods', 'dailyTotals', 'height'];
 
 var LOG_RETENTION_DAYS = 30;
 
@@ -23,7 +27,12 @@ var SHEETS = {
     name: 'FoodLog',
     headers: ['id', 'date', 'meal', 'name', 'amount', 'calories', 'protein', 'carbs', 'fat', 'createdAt'],
   },
-  weight: { name: 'Weight', headers: ['id', 'date', 'weightKg', 'createdAt'] },
+  // New columns are only ever added at the end, so older rows stay valid.
+  weight: { name: 'Weight', headers: ['id', 'date', 'weightKg', 'createdAt', 'heightCm'] },
+  dailyTotals: {
+    name: 'DailyTotals',
+    headers: ['id', 'date', 'calories', 'protein', 'carbs', 'fat', 'target', 'entries', 'updatedAt'],
+  },
   myFoods: {
     name: 'MyFoods',
     headers: ['id', 'name', 'serving', 'calories', 'protein', 'carbs', 'fat', 'createdAt'],
@@ -31,7 +40,18 @@ var SHEETS = {
   myFoodPhotos: { name: 'MyFoodPhotos', headers: ['id', 'foodId', 'embedding', 'createdAt'] },
 };
 
-var NUMBER_FIELDS = { calories: true, protein: true, carbs: true, fat: true, createdAt: true, weightKg: true };
+var NUMBER_FIELDS = {
+  calories: true,
+  protein: true,
+  carbs: true,
+  fat: true,
+  createdAt: true,
+  updatedAt: true,
+  weightKg: true,
+  heightCm: true,
+  target: true,
+  entries: true,
+};
 
 // ---------------------------------------------------------------- setup
 
@@ -66,14 +86,20 @@ function doPost(e) {
     var secret = PropertiesService.getScriptProperties().getProperty('SECRET');
     if (!secret || body.secret !== secret) return json_({ ok: false, error: 'unauthorized' });
 
+    var skipped = [];
     var lock = LockService.getScriptLock();
     lock.waitLock(20000);
     try {
-      (body.ops || []).forEach(applyOp_);
+      (body.ops || []).forEach(function (op) {
+        // An operation from a newer app version is skipped rather than failing the whole sync.
+        if (!applyOp_(op)) skipped.push(op.type);
+      });
     } finally {
       lock.releaseLock();
     }
-    return json_(readState_());
+    var state = readState_();
+    state.skipped = skipped;
+    return json_(state);
   } catch (err) {
     return json_({ ok: false, error: String(err) });
   }
@@ -113,9 +139,16 @@ function applyOp_(op) {
     case 'deleteMyFoodPhoto':
       deleteRow_(SHEETS.myFoodPhotos, op.id);
       break;
+    case 'upsertDailyTotal':
+      upsertRow_(SHEETS.dailyTotals, op.total.date, Object.assign({ id: op.total.date, updatedAt: Date.now() }, op.total));
+      break;
+    case 'deleteDailyTotal':
+      deleteRow_(SHEETS.dailyTotals, op.date);
+      break;
     default:
-      throw new Error('Unknown operation: ' + op.type);
+      return false;
   }
+  return true;
 }
 
 function readState_() {
@@ -129,9 +162,11 @@ function readState_() {
   });
   return {
     ok: true,
+    features: FEATURES,
     prefs: prefs,
     entries: readObjects_(SHEETS.food),
     weights: readObjects_(SHEETS.weight),
+    dailyTotals: readObjects_(SHEETS.dailyTotals),
     myFoods: readObjects_(SHEETS.myFoods),
     myFoodPhotos: readObjects_(SHEETS.myFoodPhotos),
   };
@@ -169,19 +204,32 @@ function cleanupOldLogs() {
 
 // ---------------------------------------------------------------- helpers
 
+var checkedHeaders_ = {};
+
 function getSheet_(def) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(def.name);
   if (!sheet) {
     sheet = ss.insertSheet(def.name);
-    sheet.getRange(1, 1, 1, def.headers.length).setValues([def.headers]).setFontWeight('bold');
     sheet.setFrozenRows(1);
-    // Store text columns as plain text so Sheets doesn't turn "2026-10-25" or "1/2 cup" into dates.
-    def.headers.forEach(function (h, i) {
-      if (!NUMBER_FIELDS[h]) sheet.getRange(1, i + 1, sheet.getMaxRows(), 1).setNumberFormat('@');
-    });
+    writeHeaders_(sheet, def, 0);
+  } else if (!checkedHeaders_[def.name]) {
+    // A tab created by an older version may be missing columns added since (e.g. heightCm).
+    var have = sheet.getLastColumn();
+    if (have < def.headers.length) writeHeaders_(sheet, def, have);
   }
+  checkedHeaders_[def.name] = true;
   return sheet;
+}
+
+/** Writes header cells from column index `from` onwards and formats new text columns as plain text. */
+function writeHeaders_(sheet, def, from) {
+  var headers = def.headers.slice(from);
+  sheet.getRange(1, from + 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
+  // Store text columns as plain text so Sheets doesn't turn "2026-10-25" or "1/2 cup" into dates.
+  headers.forEach(function (h, i) {
+    if (!NUMBER_FIELDS[h]) sheet.getRange(1, from + i + 1, sheet.getMaxRows(), 1).setNumberFormat('@');
+  });
 }
 
 function readObjects_(def) {

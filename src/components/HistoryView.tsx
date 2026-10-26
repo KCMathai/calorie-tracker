@@ -6,6 +6,7 @@ import { dayKey, entriesFor, entriesStore, LOG_RETENTION_DAYS, shiftDay, totals 
 import { profileStore } from "@/lib/profile";
 import { useNow } from "@/lib/useNow";
 import { CalorieChart, type DayBar } from "./charts";
+import { LongTermSection } from "./LongTermSection";
 import { MealList } from "./MealList";
 import { Stat } from "./Stat";
 import { WeightSection } from "./WeightSection";
@@ -119,6 +120,8 @@ export function HistoryView() {
         </ul>
         <p className="text-xs text-muted">Food logs are kept for {LOG_RETENTION_DAYS} days.</p>
       </section>
+
+      <LongTermSection today={today} />
 
       <WeightSection today={today} />
     </div>

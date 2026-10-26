@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { PasswordInput } from "./PasswordInput";
-import { passcodeStore, syncNow, usePendingCount, useSheetNeedsScriptUpdate, useSyncStatus, type SyncState } from "@/lib/sync";
+import { lockAndClearDevice, syncNow, usePendingCount, useSheetNeedsScriptUpdate, useSyncStatus, type SyncState } from "@/lib/sync";
 
 export const STATUS_TEXT: Record<SyncState, string> = {
   idle: "Checking…",
@@ -18,9 +17,7 @@ export function SyncSettings() {
   const status = useSyncStatus();
   const pending = usePendingCount();
   const needsScriptUpdate = useSheetNeedsScriptUpdate();
-  const storedPasscode = passcodeStore.useValue();
-  const [passcode, setPasscode] = useState<string | null>(null);
-  const passcodeValue = passcode ?? storedPasscode ?? "";
+  const [lockError, setLockError] = useState<string | null>(null);
 
   const ok = status.state === "synced";
 
@@ -39,30 +36,37 @@ export function SyncSettings() {
         {pending > 0 && <p className="text-xs text-muted">{pending} change(s) waiting to sync</p>}
         {needsScriptUpdate && (
           <p className="mt-1 rounded-lg bg-[var(--warning-soft)] px-3 py-2 text-xs">
-            ⚠️ Your taught foods are saved on this device but can&apos;t reach the sheet yet: the Google script needs updating. Paste
-            the new <code>Code.gs</code> into Apps Script and deploy a new version (see the setup guide). Everything else syncs normally.
+            ⚠️ Some of your data (like taught foods, heights or daily totals) is saved on this device but can&apos;t reach the sheet
+            yet: the Google script needs updating. Paste the new <code>Code.gs</code> into Apps Script and deploy a new version (see
+            the setup guide). Everything else syncs normally.
           </p>
         )}
-        <p className="mt-1 text-xs text-muted">Food logs are kept for 30 days. Preferences and weight are kept forever.</p>
+        <p className="mt-1 text-xs text-muted">
+          Meals are kept for 30 days. Daily calorie totals, weight, height, taught foods and preferences are kept forever.
+        </p>
       </div>
 
-      <form
-        className="flex items-end gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          passcodeStore.set(passcodeValue.trim() || null);
-          setPasscode(null);
-          void syncNow();
-        }}
-      >
-        <label className="flex min-w-0 flex-1 flex-col gap-1">
-          <span className="label">App passcode</span>
-          <PasswordInput value={passcodeValue} onChange={setPasscode} placeholder="Your passcode" />
-        </label>
-        <button type="submit" className="btn-secondary shrink-0 whitespace-nowrap !py-2">
-          Save & sync
+      <div className="flex flex-wrap gap-2">
+        <button type="button" className="btn-secondary !py-2" onClick={() => void syncNow()}>
+          Sync now
         </button>
-      </form>
+        <button
+          type="button"
+          className="btn-secondary !py-2"
+          onClick={() => {
+            setLockError(null);
+            if (!confirm("Lock the app on this device? Your data is removed from this device (it stays in your Google Sheet) and the passcode is needed to open it again.")) return;
+            if (!lockAndClearDevice()) setLockError("Some changes haven't reached your sheet yet. Connect to the internet, tap “Sync now”, then try again.");
+          }}
+        >
+          🔒 Lock app on this device
+        </button>
+      </div>
+      {lockError && (
+        <p className="text-sm text-[var(--danger)]" role="alert">
+          {lockError}
+        </p>
+      )}
     </section>
   );
 }

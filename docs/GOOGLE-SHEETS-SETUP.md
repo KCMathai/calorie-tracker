@@ -47,10 +47,11 @@ APP_PASSCODE=choose a passcode
 
 Save the file, then tell Claude it's done — the app's server needs a restart to pick it up.
 
-## 6. Enter your passcode in the app
-Open the app → **Settings → Google Sheets sync**, type the same passcode, and tap **Save & sync**.
-The status should change to **✓ Synced with Google Sheets**. Anything already on this device
-is uploaded the first time it connects.
+## 6. Unlock the app with your passcode
+The app opens on a lock screen until it's unlocked on that device. Type the same passcode and tap
+**Unlock** — your data is then downloaded from the sheet. Anything already on the device is uploaded
+the first time it connects. **Settings → Google Sheets sync → Lock app on this device** removes the
+data from that device again (it stays in your sheet).
 
 ---
 
@@ -65,14 +66,19 @@ and the app shows a notice in **Settings → Google Sheets sync**; everything el
 4. **Version: New version** (keep *Execute as: Me* and *Who has access: Anyone*) → **Deploy**.
 
 The web app URL stays the same, so nothing changes in `.env.local` or Vercel. You don't need to run
-`setup` again — new tabs (like **MyFoods** and **MyFoodPhotos**) are created automatically on first use.
+`setup` again — new tabs (like **DailyTotals**, **MyFoods** and **MyFoodPhotos**) and new columns (like
+**heightCm** in **Weight**) are created automatically on first use.
+
+From script version 3 on, the script tells the app what it supports and skips anything it doesn't know,
+so a newer app never breaks syncing with an older script.
 
 ## How the data is kept
 | Tab | Contents | Kept |
 |---|---|---|
 | Preferences | Your details, calorie target, alert settings | Forever |
 | FoodLog | Every food entry | 30 days — older rows are deleted nightly around 3 AM |
-| Weight | Weight entries | Forever |
+| Weight | Weigh-ins, with optional height | Forever |
+| DailyTotals | One row per day: total calories, protein, carbs, fat and that day's target | Forever |
 | MyFoods | Foods you taught the photo recogniser (name, serving, calories, macros) | Forever |
 | MyFoodPhotos | A compact visual fingerprint of each photo of those foods (not the photo itself) | Forever |
 

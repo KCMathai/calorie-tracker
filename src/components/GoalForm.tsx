@@ -17,7 +17,7 @@ function inRange(value: number, { min, max }: { min: number; max: number }) {
 }
 
 export function GoalForm({ initial, onSaved }: { initial?: Profile | null; onSaved?: () => void }) {
-  const [sex, setSex] = useState<Sex>(initial?.sex ?? "female");
+  const [sex, setSex] = useState<Sex | null>(initial?.sex ?? null);
   const [age, setAge] = useState(initial ? String(initial.age) : "");
   const [heightCm, setHeightCm] = useState(initial ? String(initial.heightCm) : "");
   const [weightKg, setWeightKg] = useState(initial ? String(initial.weightKg) : "");
@@ -29,16 +29,16 @@ export function GoalForm({ initial, onSaved }: { initial?: Profile | null; onSav
 
   const nums = { age: Number(age), heightCm: Number(heightCm), weightKg: Number(weightKg) };
   const bodyValid =
-    inRange(nums.age, LIMITS.age) && inRange(nums.heightCm, LIMITS.heightCm) && inRange(nums.weightKg, LIMITS.weightKg);
+    sex !== null && inRange(nums.age, LIMITS.age) && inRange(nums.heightCm, LIMITS.heightCm) && inRange(nums.weightKg, LIMITS.weightKg);
   const suggestion = bodyValid ? suggestedTarget({ sex, activity, goal, ...nums }) : null;
   const ownTargetNum = Number(ownTarget);
   const ownTargetValid = inRange(ownTargetNum, LIMITS.calorieTarget);
   const finalTarget = customTarget ? (ownTargetValid ? ownTargetNum : null) : suggestion;
-  const belowSafe = finalTarget !== null && finalTarget < MIN_SAFE_CALORIES[sex];
+  const belowSafe = sex !== null && finalTarget !== null && finalTarget < MIN_SAFE_CALORIES[sex];
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!bodyValid || finalTarget === null) return;
+    if (!bodyValid || sex === null || finalTarget === null) return;
     saveProfile({ sex, activity, goal, ...nums, calorieTarget: Math.round(finalTarget), customTarget });
     setSaved(true);
     onSaved?.();
@@ -49,8 +49,8 @@ export function GoalForm({ initial, onSaved }: { initial?: Profile | null; onSav
       <fieldset className="flex flex-col gap-2">
         <legend className="label">Sex</legend>
         <div className="grid grid-cols-2 gap-2">
-          {(["female", "male"] as const).map((s) => (
-            <Choice key={s} name="sex" checked={sex === s} onChange={() => setSex(s)} label={s === "female" ? "Female" : "Male"} />
+          {(["male", "female"] as const).map((s) => (
+            <Choice key={s} name="sex" checked={sex === s} onChange={() => setSex(s)} label={s === "male" ? "Male" : "Female"} />
           ))}
         </div>
       </fieldset>
@@ -90,7 +90,7 @@ export function GoalForm({ initial, onSaved }: { initial?: Profile | null; onSav
           <p className="text-3xl font-semibold tabular-nums">
             {suggestion !== null ? suggestion.toLocaleString() : "—"} <span className="text-base font-normal text-muted">kcal</span>
           </p>
-          {suggestion === null && <p className="text-sm text-muted">Fill in age, height and weight to see it.</p>}
+          {suggestion === null && <p className="text-sm text-muted">Choose your sex and fill in age, height and weight to see it.</p>}
         </div>
 
         <label className="flex items-center gap-2 text-sm">
@@ -100,7 +100,7 @@ export function GoalForm({ initial, onSaved }: { initial?: Profile | null; onSav
         {customTarget && (
           <NumberField label="My daily target" unit="kcal" value={ownTarget} onChange={setOwnTarget} limits={LIMITS.calorieTarget} />
         )}
-        {belowSafe && (
+        {belowSafe && sex !== null && (
           <p className="rounded-lg bg-amber-100 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
             This is below the commonly recommended minimum of {MIN_SAFE_CALORIES[sex].toLocaleString()} kcal. Please check with a doctor
             before eating this little.

@@ -1,7 +1,7 @@
 import { alertsStore, type AlertSettings } from "./alerts";
-import { entriesStore, type NewFoodEntry } from "./entries";
+import { dayKey, entriesStore, type NewFoodEntry } from "./entries";
 import { profileStore } from "./profile";
-import { enqueue } from "./sync";
+import { enqueue, refreshDailyTotal } from "./sync";
 import type { Profile } from "./types";
 import { suggestedTarget } from "./calories";
 import { sortedWeights, weightsStore, type WeightEntry } from "./weights";
@@ -16,10 +16,13 @@ import {
 
 // Every change goes through here: update the device copy, then queue it for Google Sheets.
 
+// Food changes also update that day's summary, which is kept forever.
+
 export function addEntry(entry: NewFoodEntry) {
   const full = { ...entry, id: crypto.randomUUID(), createdAt: Date.now() };
   entriesStore.set([...(entriesStore.get() ?? []), full]);
   enqueue({ type: "upsertEntry", entry: full });
+  refreshDailyTotal(full.date);
 }
 
 export function updateEntry(id: string, changes: NewFoodEntry) {
@@ -28,16 +31,21 @@ export function updateEntry(id: string, changes: NewFoodEntry) {
   const updated = { ...existing, ...changes };
   entriesStore.set((entriesStore.get() ?? []).map((e) => (e.id === id ? updated : e)));
   enqueue({ type: "upsertEntry", entry: updated });
+  refreshDailyTotal(updated.date);
+  if (existing.date !== updated.date) refreshDailyTotal(existing.date);
 }
 
 export function deleteEntry(id: string) {
+  const existing = (entriesStore.get() ?? []).find((e) => e.id === id);
   entriesStore.set((entriesStore.get() ?? []).filter((e) => e.id !== id));
   enqueue({ type: "deleteEntry", id });
+  if (existing) refreshDailyTotal(existing.date);
 }
 
 export function saveProfile(profile: Profile) {
   profileStore.set(profile);
   enqueue({ type: "setPref", key: "profile", value: profile });
+  refreshDailyTotal(dayKey(new Date())); // today's summary records today's target
 }
 
 export function saveAlerts(alerts: AlertSettings) {
@@ -46,28 +54,28 @@ export function saveAlerts(alerts: AlertSettings) {
 }
 
 /**
- * Records a weigh-in (one per day — a second one that day replaces the first).
- * If it's the most recent weigh-in, the profile weight follows it, and the daily
- * target is recalculated unless the user set their own.
+ * Records a weigh-in, optionally with height (one per day — a second one that
+ * day replaces the first). If it's the most recent weigh-in, the profile's
+ * weight and height follow it, and the daily target is recalculated unless the
+ * user set their own.
  */
-export function saveWeight(date: string, weightKg: number) {
+export function saveWeight(date: string, weightKg: number, heightCm?: number) {
   const all = weightsStore.get() ?? [];
   const existing = all.find((w) => w.date === date);
-  const weight: WeightEntry = existing
-    ? { ...existing, weightKg }
-    : { id: crypto.randomUUID(), date, weightKg, createdAt: Date.now() };
+  const base = existing ?? { id: crypto.randomUUID(), date, createdAt: Date.now() };
+  const weight: WeightEntry = { ...base, weightKg, ...(heightCm !== undefined ? { heightCm } : {}) };
   weightsStore.set(existing ? all.map((w) => (w.id === weight.id ? weight : w)) : [...all, weight]);
   enqueue({ type: "upsertWeight", weight });
 
   const latest = sortedWeights(weightsStore.get()).at(-1);
   const profile = profileStore.get();
-  if (profile && latest?.id === weight.id && profile.weightKg !== weightKg) {
-    saveProfile({
-      ...profile,
-      weightKg,
-      calorieTarget: profile.customTarget ? profile.calorieTarget : suggestedTarget({ ...profile, weightKg }),
-    });
-  }
+  if (!profile || latest?.id !== weight.id) return;
+  const next = { ...profile, weightKg, heightCm: weight.heightCm ?? profile.heightCm };
+  if (next.weightKg === profile.weightKg && next.heightCm === profile.heightCm) return;
+  saveProfile({
+    ...next,
+    calorieTarget: profile.customTarget ? profile.calorieTarget : suggestedTarget(next),
+  });
 }
 
 export function deleteWeight(id: string) {

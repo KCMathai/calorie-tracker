@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { AuthGate } from "@/components/AuthGate";
 import { BottomNav } from "@/components/BottomNav";
 import { SyncProvider } from "@/components/SyncProvider";
 import "./globals.css";
@@ -32,9 +33,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full">
-        <main className="mx-auto w-full max-w-md px-4 pt-6 pb-28">{children}</main>
-        <BottomNav />
-        <SyncProvider />
+        <AuthGate>
+          <main className="mx-auto w-full max-w-md px-4 pt-6 pb-28">{children}</main>
+          <BottomNav />
+          <SyncProvider />
+        </AuthGate>
       </body>
     </html>
   );
