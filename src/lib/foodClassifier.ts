@@ -4,6 +4,12 @@ export type ClassifyProgress =
   | { stage: "downloading"; progress: number; loadedMB: number; totalMB: number }
   | { stage: "analysing" };
 
+export interface ClassifyResult {
+  guesses: FoodGuess[];
+  /** visual fingerprint of the photo, or null if that model couldn't run */
+  embedding: string | null;
+}
+
 let worker: Worker | null = null;
 let nextId = 1;
 
@@ -13,22 +19,22 @@ function getWorker() {
 }
 
 /**
- * Recognises the dish in a photo, entirely in the browser. The first call
- * downloads the model (cached by the browser afterwards).
+ * Recognises the dish in a photo and makes its visual fingerprint, entirely in
+ * the browser. The first call downloads the models (cached by the browser afterwards).
  */
-export function classifyFood(image: Blob, onProgress?: (p: ClassifyProgress) => void): Promise<FoodGuess[]> {
+export function classifyFood(image: Blob, onProgress?: (p: ClassifyProgress) => void): Promise<ClassifyResult> {
   const w = getWorker();
   const id = nextId++;
+  // Both models download at once; report their combined progress.
+  const bytes: Record<string, { loaded: number; total: number }> = {};
   return new Promise((resolve, reject) => {
     const onMessage = (event: MessageEvent<WorkerResponse>) => {
       const msg = event.data;
       if (msg.type === "progress") {
-        onProgress?.({
-          stage: "downloading",
-          progress: msg.progress,
-          loadedMB: msg.loaded / 1e6,
-          totalMB: msg.total / 1e6,
-        });
+        bytes[msg.model] = { loaded: msg.loaded, total: msg.total };
+        const loaded = Object.values(bytes).reduce((s, b) => s + b.loaded, 0);
+        const total = Object.values(bytes).reduce((s, b) => s + b.total, 0);
+        onProgress?.({ stage: "downloading", progress: total ? (loaded / total) * 100 : 0, loadedMB: loaded / 1e6, totalMB: total / 1e6 });
         return;
       }
       if (msg.id !== id) return;
@@ -37,7 +43,7 @@ export function classifyFood(image: Blob, onProgress?: (p: ClassifyProgress) => 
         return;
       }
       w.removeEventListener("message", onMessage);
-      if (msg.type === "result") resolve(msg.results);
+      if (msg.type === "result") resolve({ guesses: msg.results, embedding: msg.embedding });
       else reject(new Error(msg.message));
     };
     w.addEventListener("message", onMessage);

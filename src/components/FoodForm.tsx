@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { MEALS, type FoodEntry, type Meal, type NewFoodEntry } from "@/lib/entries";
 import { BarcodeScanner } from "./BarcodeScanner";
-import { PhotoRecognizer, type FoodFill } from "./PhotoRecognizer";
+import { teachFood } from "@/lib/actions";
+import { findMyFoodByName, myFoodsStore } from "@/lib/myFoods";
+import { PhotoRecognizer, type FoodFill, type PhotoContext } from "./PhotoRecognizer";
 
 function optionalNumber(value: string): number | undefined {
   if (value.trim() === "") return undefined;
@@ -31,14 +33,19 @@ export function FoodForm({
   const [protein, setProtein] = useState(initial?.protein != null ? String(initial.protein) : "");
   const [carbs, setCarbs] = useState(initial?.carbs != null ? String(initial.carbs) : "");
   const [fat, setFat] = useState(initial?.fat != null ? String(initial.fat) : "");
+  /** The photo this entry came from, so it can be remembered as a taught food. */
+  const [photo, setPhoto] = useState<PhotoContext | null>(null);
+  const [remember, setRemember] = useState(false);
+  const [taught, setTaught] = useState<string | null>(null);
 
   const caloriesNum = Number(calories);
   const valid = name.trim() !== "" && calories !== "" && Number.isFinite(caloriesNum) && caloriesNum >= 0 && caloriesNum <= 10000;
+  const existingTaught = photo ? findMyFoodByName(myFoodsStore.get(), name) : undefined;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!valid) return;
-    onSubmit({
+    const entry: NewFoodEntry = {
       date: initial?.date ?? date,
       meal,
       name: name.trim(),
@@ -47,7 +54,24 @@ export function FoodForm({
       protein: optionalNumber(protein),
       carbs: optionalNumber(carbs),
       fat: optionalNumber(fat),
-    });
+    };
+    onSubmit(entry);
+    if (photo && remember) {
+      const food = teachFood(
+        {
+          name: entry.name,
+          serving: entry.amount ?? "1 serving",
+          calories: entry.calories,
+          protein: entry.protein,
+          carbs: entry.carbs,
+          fat: entry.fat,
+        },
+        photo.embedding,
+      );
+      setTaught(food.name);
+    } else {
+      setTaught(null);
+    }
     if (!initial) {
       setName("");
       setAmount("");
@@ -55,25 +79,49 @@ export function FoodForm({
       setProtein("");
       setCarbs("");
       setFat("");
+      setPhoto(null);
+      setRemember(false);
     }
   }
 
-  function fillFromPhoto(fill: FoodFill) {
-    setName(fill.name);
-    setAmount(fill.amount);
-    setCalories(String(fill.calories));
-    setProtein(fill.protein != null ? String(fill.protein) : "");
-    setCarbs(fill.carbs != null ? String(fill.carbs) : "");
-    setFat(fill.fat != null ? String(fill.fat) : "");
+  function fill(f: FoodFill) {
+    setName(f.name);
+    setAmount(f.amount);
+    setCalories(String(f.calories));
+    setProtein(f.protein != null ? String(f.protein) : "");
+    setCarbs(f.carbs != null ? String(f.carbs) : "");
+    setFat(f.fat != null ? String(f.fat) : "");
   }
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
       {!initial && (
         <div className="flex flex-col gap-2">
-          <PhotoRecognizer onPick={fillFromPhoto} />
-          <BarcodeScanner onPick={fillFromPhoto} />
+          <PhotoRecognizer
+            onPick={(f, p) => {
+              fill(f);
+              setPhoto(p);
+              setRemember(false); // a built-in guess was right; teaching is optional (e.g. after renaming)
+              setTaught(null);
+            }}
+            onNoMatch={(p) => {
+              setPhoto(p);
+              setRemember(p !== null); // the app got it wrong: offer to learn it
+              setTaught(null);
+            }}
+          />
+          <BarcodeScanner
+            onPick={(f) => {
+              fill(f);
+              setPhoto(null);
+            }}
+          />
         </div>
+      )}
+      {taught && (
+        <p className="text-sm text-[var(--accent)]" role="status">
+          ⭐ Remembered “{taught}” — the app will suggest it for similar photos.
+        </p>
       )}
 
       <div className="grid grid-cols-4 gap-1 rounded-xl bg-[var(--surface-hover)] p-1" role="radiogroup" aria-label="Meal">
@@ -141,6 +189,25 @@ export function FoodForm({
           </label>
         ))}
       </fieldset>
+
+      {photo && (
+        <label className="flex items-start gap-2 rounded-xl border border-[var(--border)] px-3 py-2 text-sm">
+          <input
+            type="checkbox"
+            checked={remember}
+            onChange={(e) => setRemember(e.target.checked)}
+            className="mt-0.5 size-4 accent-[var(--accent)]"
+          />
+          <span>
+            ⭐ Remember this food from the photo
+            <span className="block text-xs text-muted">
+              {existingTaught
+                ? `Adds this photo to “${existingTaught.name}” so it's recognised more reliably.`
+                : "Next time a similar photo is taken, the app will suggest it with these details as 1 serving."}
+            </span>
+          </span>
+        </label>
+      )}
 
       <div className="flex gap-2">
         {onCancel && (

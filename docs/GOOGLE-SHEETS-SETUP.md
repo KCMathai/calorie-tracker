@@ -54,12 +54,27 @@ is uploaded the first time it connects.
 
 ---
 
+## Updating the script (when the app gets new features)
+Some new features need a newer version of `google-apps-script/Code.gs` — for example
+**taught foods** (⭐ My foods). Until you update, those features keep their data on your device
+and the app shows a notice in **Settings → Google Sheets sync**; everything else keeps syncing.
+
+1. Open your sheet → **Extensions → Apps Script**.
+2. Select everything in the editor (**Ctrl+A**), delete it, and paste the whole new `Code.gs`. Click 💾 **Save**.
+3. **Deploy → Manage deployments** → select your deployment → ✏️ **Edit**.
+4. **Version: New version** (keep *Execute as: Me* and *Who has access: Anyone*) → **Deploy**.
+
+The web app URL stays the same, so nothing changes in `.env.local` or Vercel. You don't need to run
+`setup` again — new tabs (like **MyFoods** and **MyFoodPhotos**) are created automatically on first use.
+
 ## How the data is kept
 | Tab | Contents | Kept |
 |---|---|---|
 | Preferences | Your details, calorie target, alert settings | Forever |
 | FoodLog | Every food entry | 30 days — older rows are deleted nightly around 3 AM |
-| Weight | Weight entries (coming in a later step) | Forever |
+| Weight | Weight entries | Forever |
+| MyFoods | Foods you taught the photo recogniser (name, serving, calories, macros) | Forever |
+| MyFoodPhotos | A compact visual fingerprint of each photo of those foods (not the photo itself) | Forever |
 
 You can look at the sheet any time. Avoid editing it by hand while the app is open;
 if you do, the app picks up the changes the next time it syncs.

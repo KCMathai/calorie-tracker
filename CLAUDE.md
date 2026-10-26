@@ -19,6 +19,12 @@ A personal calorie counter and diet tracker. Mobile-first web app.
   `onnx-community/swin-finetuned-food101-ONNX` (Apache-2.0, q8 ≈ 93 MB, downloaded once and cached by the browser).
   It knows the 101 Food-101 dishes only; the user picks a guess and a portion, and nutrition comes from the
   built-in table in `src/lib/foodNutrition.ts` (estimates). Unknown dishes → type it in.
+- **Taught foods (⭐ My foods):** when a photo isn't recognised, the user can teach it. The worker also runs
+  `Xenova/dinov2-small` (q8 ≈ 24 MB) to make a 384-number fingerprint of each photo (pooled [CLS]; patch-average
+  was tested and separated dishes worse). Fingerprints are int8-packed text (`src/lib/embedding.ts`), matched by
+  cosine similarity (threshold 0.45, measured: different dishes ≤ 0.44) in `src/lib/myFoods.ts`. Confirming a
+  match stores another example (max 8 per food). Synced to the sheet's MyFoods / MyFoodPhotos tabs; taught-food
+  ops are held back while the deployed Apps Script is older (detected by `myFoods` missing from its response).
 - **Barcode scanning:** `src/components/BarcodeScanner.tsx` — live camera, photo of a barcode, or typed number.
   Uses the native `BarcodeDetector` when it supports EAN/UPC, else the `barcode-detector` ponyfill (ZXing WASM).
   The WASM is self-hosted at `/zxing/zxing_reader.wasm`, copied from node_modules by the `postinstall` script

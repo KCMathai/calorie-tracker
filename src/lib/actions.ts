@@ -5,6 +5,14 @@ import { enqueue } from "./sync";
 import type { Profile } from "./types";
 import { suggestedTarget } from "./calories";
 import { sortedWeights, weightsStore, type WeightEntry } from "./weights";
+import {
+  findMyFoodByName,
+  MAX_PHOTOS_PER_FOOD,
+  myFoodPhotosStore,
+  myFoodsStore,
+  type MyFood,
+  type MyFoodPhoto,
+} from "./myFoods";
 
 // Every change goes through here: update the device copy, then queue it for Google Sheets.
 
@@ -65,4 +73,44 @@ export function saveWeight(date: string, weightKg: number) {
 export function deleteWeight(id: string) {
   weightsStore.set((weightsStore.get() ?? []).filter((w) => w.id !== id));
   enqueue({ type: "deleteWeight", id });
+}
+
+// ---------------------------------------------------------------- taught foods
+
+/** Remembers another photo of a taught food, keeping only the newest few. */
+export function addMyFoodPhoto(foodId: string, embedding: string) {
+  const photo: MyFoodPhoto = { id: crypto.randomUUID(), foodId, embedding, createdAt: Date.now() };
+  const all = [...(myFoodPhotosStore.get() ?? []), photo];
+  const forFood = all.filter((p) => p.foodId === foodId).sort((a, b) => a.createdAt - b.createdAt);
+  const drop = new Set(forFood.slice(0, Math.max(forFood.length - MAX_PHOTOS_PER_FOOD, 0)).map((p) => p.id));
+  myFoodPhotosStore.set(all.filter((p) => !drop.has(p.id)));
+  enqueue({ type: "upsertMyFoodPhoto", photo });
+  drop.forEach((id) => enqueue({ type: "deleteMyFoodPhoto", id }));
+}
+
+/**
+ * Teaches the recogniser a food from a photo. If a taught food with the same
+ * name exists, the photo becomes another example of it (its nutrition is kept);
+ * otherwise a new taught food is created with the details as entered.
+ */
+export function teachFood(details: Omit<MyFood, "id" | "createdAt">, embedding: string): MyFood {
+  let food = findMyFoodByName(myFoodsStore.get(), details.name);
+  if (!food) {
+    food = { ...details, name: details.name.trim(), id: crypto.randomUUID(), createdAt: Date.now() };
+    myFoodsStore.set([...(myFoodsStore.get() ?? []), food]);
+    enqueue({ type: "upsertMyFood", food });
+  }
+  addMyFoodPhoto(food.id, embedding);
+  return food;
+}
+
+export function updateMyFood(food: MyFood) {
+  myFoodsStore.set((myFoodsStore.get() ?? []).map((f) => (f.id === food.id ? food : f)));
+  enqueue({ type: "upsertMyFood", food });
+}
+
+export function deleteMyFood(id: string) {
+  myFoodsStore.set((myFoodsStore.get() ?? []).filter((f) => f.id !== id));
+  myFoodPhotosStore.set((myFoodPhotosStore.get() ?? []).filter((p) => p.foodId !== id));
+  enqueue({ type: "deleteMyFood", id }); // the script also deletes the food's photos
 }

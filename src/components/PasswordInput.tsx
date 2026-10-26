@@ -93,7 +93,7 @@ export function PasswordInput({
   }
 
   return (
-    <div className={`field flex items-center gap-1 !py-0 pr-1 ${className}`}>
+    <div className={`field flex min-w-0 items-center gap-1 !py-0 pr-1 ${className}`}>
       <input
         ref={inputRef}
         {...rest}

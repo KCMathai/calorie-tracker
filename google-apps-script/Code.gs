@@ -8,6 +8,11 @@
  *   Preferences — profile and alert settings (kept forever)
  *   FoodLog     — food entries (rows older than 30 days are deleted nightly)
  *   Weight      — weight entries (kept forever)
+ *   MyFoods     — foods you taught the photo recogniser (kept forever)
+ *   MyFoodPhotos — visual fingerprints of your photos of those foods (kept forever)
+ *
+ * After pasting a new version of this file: Deploy → Manage deployments → ✏️ Edit →
+ * Version: New version → Deploy (the web app URL stays the same).
  */
 
 var LOG_RETENTION_DAYS = 30;
@@ -19,6 +24,11 @@ var SHEETS = {
     headers: ['id', 'date', 'meal', 'name', 'amount', 'calories', 'protein', 'carbs', 'fat', 'createdAt'],
   },
   weight: { name: 'Weight', headers: ['id', 'date', 'weightKg', 'createdAt'] },
+  myFoods: {
+    name: 'MyFoods',
+    headers: ['id', 'name', 'serving', 'calories', 'protein', 'carbs', 'fat', 'createdAt'],
+  },
+  myFoodPhotos: { name: 'MyFoodPhotos', headers: ['id', 'foodId', 'embedding', 'createdAt'] },
 };
 
 var NUMBER_FIELDS = { calories: true, protein: true, carbs: true, fat: true, createdAt: true, weightKg: true };
@@ -90,6 +100,19 @@ function applyOp_(op) {
     case 'deleteWeight':
       deleteRow_(SHEETS.weight, op.id);
       break;
+    case 'upsertMyFood':
+      upsertRow_(SHEETS.myFoods, op.food.id, op.food);
+      break;
+    case 'deleteMyFood':
+      deleteRow_(SHEETS.myFoods, op.id);
+      deleteRowsWhere_(SHEETS.myFoodPhotos, 'foodId', op.id);
+      break;
+    case 'upsertMyFoodPhoto':
+      upsertRow_(SHEETS.myFoodPhotos, op.photo.id, op.photo);
+      break;
+    case 'deleteMyFoodPhoto':
+      deleteRow_(SHEETS.myFoodPhotos, op.id);
+      break;
     default:
       throw new Error('Unknown operation: ' + op.type);
   }
@@ -109,6 +132,8 @@ function readState_() {
     prefs: prefs,
     entries: readObjects_(SHEETS.food),
     weights: readObjects_(SHEETS.weight),
+    myFoods: readObjects_(SHEETS.myFoods),
+    myFoodPhotos: readObjects_(SHEETS.myFoodPhotos),
   };
 }
 
@@ -198,6 +223,18 @@ function deleteRow_(def, id) {
   var sheet = getSheet_(def);
   var index = findRow_(sheet, id);
   if (index > 0) sheet.deleteRow(index);
+}
+
+/** Deletes every row whose `column` equals `value` (bottom-up, so row numbers stay valid). */
+function deleteRowsWhere_(def, column, value) {
+  var sheet = getSheet_(def);
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+  var col = def.headers.indexOf(column) + 1;
+  var values = sheet.getRange(2, col, lastRow - 1, 1).getValues();
+  for (var i = values.length - 1; i >= 0; i--) {
+    if (String(values[i][0]) === String(value)) sheet.deleteRow(i + 2);
+  }
 }
 
 /** 1-based row number for the id in column A, or -1. */
