@@ -1,5 +1,7 @@
 import { alertsStore, type AlertSettings } from "./alerts";
-import { dayKey, entriesStore, type NewFoodEntry } from "./entries";
+import { dayKey, entriesStore, type FoodEntry, type NewFoodEntry } from "./entries";
+import { favoritesStore, findFavorite, type Favorite } from "./favorites";
+import { notificationSettingsStore, type NotificationSettings } from "./notifications";
 import { profileStore } from "./profile";
 import { enqueue, refreshDailyTotal } from "./sync";
 import type { Profile } from "./types";
@@ -18,11 +20,12 @@ import {
 
 // Food changes also update that day's summary, which is kept forever.
 
-export function addEntry(entry: NewFoodEntry) {
+export function addEntry(entry: NewFoodEntry): FoodEntry {
   const full = { ...entry, id: crypto.randomUUID(), createdAt: Date.now() };
   entriesStore.set([...(entriesStore.get() ?? []), full]);
   enqueue({ type: "upsertEntry", entry: full });
   refreshDailyTotal(full.date);
+  return full;
 }
 
 export function updateEntry(id: string, changes: NewFoodEntry) {
@@ -81,6 +84,37 @@ export function saveWeight(date: string, weightKg: number, heightCm?: number) {
 export function deleteWeight(id: string) {
   weightsStore.set((weightsStore.get() ?? []).filter((w) => w.id !== id));
   enqueue({ type: "deleteWeight", id });
+}
+
+// ---------------------------------------------------------------- favourites
+
+function saveFavorites(list: Favorite[]) {
+  favoritesStore.set(list);
+  enqueue({ type: "setPref", key: "favorites", value: list });
+}
+
+/** Stars or un-stars a food. Returns true if it's now a favourite. */
+export function toggleFavorite(food: Omit<Favorite, "id" | "createdAt">): boolean {
+  const all = favoritesStore.get() ?? [];
+  const existing = findFavorite(all, food);
+  if (existing) {
+    saveFavorites(all.filter((f) => f.id !== existing.id));
+    return false;
+  }
+  const { name, amount, calories, protein, carbs, fat } = food;
+  saveFavorites([...all, { id: crypto.randomUUID(), createdAt: Date.now(), name, amount, calories, protein, carbs, fat }]);
+  return true;
+}
+
+export function removeFavorite(id: string) {
+  saveFavorites((favoritesStore.get() ?? []).filter((f) => f.id !== id));
+}
+
+// ---------------------------------------------------------------- notifications
+
+export function saveNotificationSettings(settings: NotificationSettings) {
+  notificationSettingsStore.set(settings);
+  enqueue({ type: "setPref", key: "notifications", value: settings });
 }
 
 // ---------------------------------------------------------------- taught foods

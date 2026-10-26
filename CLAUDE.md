@@ -39,6 +39,16 @@ A personal calorie counter and diet tracker. Mobile-first web app.
   foods are kept forever. Daily totals are refreshed on every food change; days older than 30 are never recomputed.
 - **Passcode lock:** `src/components/AuthGate.tsx` shows only a lock screen until the device is unlocked (checked via
   an empty `/api/sync`). A `bad_passcode` sync locks the device again. "Lock app on this device" clears all local data.
+- **Favourites & quick add:** favourites live in preferences (`setPref favorites`, `src/lib/favorites.ts`); the Log
+  screen's Quick add shows favourites and recent foods (from the last 30 days) for one-tap logging with Undo.
+- **Installable app:** `src/app/manifest.ts`, icons drawn in code (`src/app/icon.tsx`, `apple-icon.tsx`,
+  `src/components/AppIconArt.tsx`). Phone guide: `docs/PHONE-SETUP.md`.
+- **Phone notifications:** `public/sw.js` (never cached, see `next.config.ts` headers) shows pushes. Devices subscribe
+  in Settings; each subscription is stored as preference `push-<deviceId>`, plus `appUrl` and `notifications`.
+  The Apps Script `notifyTick` (hourly trigger from `setupNotifications`) POSTs prefs + recent food to `/api/notify`
+  (auth: SHEETS_SECRET), which applies `src/lib/notifyRules.ts` and sends via `web-push`; the script records
+  `notify-sent` (once per day per reminder) and deletes gone devices. Keys: `NEXT_PUBLIC_VAPID_PUBLIC_KEY`,
+  `VAPID_PRIVATE_KEY`. Server code must not import `src/lib/store.ts` (React hook) — pure rules live in `alertRules.ts`.
 - **Script versions:** the Apps Script returns `features` (v3+); `featureOf()` in `sync.ts` holds back ops the deployed
   script can't store, and `replayOnDevice()` re-applies them after the sheet's copy replaces the device's.
 - **Calorie target:** Mifflin-St Jeor BMR × activity factor, adjusted for goal; user can override. Metric units (cm, kg).

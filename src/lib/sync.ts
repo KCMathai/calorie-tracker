@@ -2,6 +2,8 @@ import { useSyncExternalStore } from "react";
 import { alertsStore, type AlertSettings } from "./alerts";
 import { dailyTotalsStore, sameTotal, summarize, type DailyTotal } from "./dailyTotals";
 import { dayKey, entriesStore, LOG_RETENTION_DAYS, shiftDay, withinRetention, type FoodEntry, type Meal } from "./entries";
+import { favoritesStore, type Favorite } from "./favorites";
+import { deviceIdStore, notificationSettingsStore, type NotificationSettings, type PushRecord } from "./notifications";
 import { myFoodPhotosStore, myFoodsStore, type MyFood, type MyFoodPhoto } from "./myFoods";
 import { profileStore } from "./profile";
 import { createStore } from "./store";
@@ -23,6 +25,12 @@ import { weightsStore, type WeightEntry } from "./weights";
 export type SyncOp =
   | { type: "setPref"; key: "profile"; value: Profile }
   | { type: "setPref"; key: "alerts"; value: AlertSettings }
+  | { type: "setPref"; key: "favorites"; value: Favorite[] }
+  | { type: "setPref"; key: "notifications"; value: NotificationSettings }
+  /** where the app lives, so the sheet's hourly reminder check can reach it */
+  | { type: "setPref"; key: "appUrl"; value: string }
+  /** one per device; null removes it */
+  | { type: "setPref"; key: `push-${string}`; value: PushRecord | null }
   | { type: "upsertEntry"; entry: FoodEntry }
   | { type: "deleteEntry"; id: string }
   | { type: "upsertWeight"; weight: WeightEntry }
@@ -39,13 +47,13 @@ type QueuedOp = SyncOp & { opId?: string };
 type Row = Record<string, string | number>;
 
 /** Things a newer Apps Script can store. */
-type Feature = "myFoods" | "dailyTotals" | "height";
+type Feature = "myFoods" | "dailyTotals" | "height" | "notifications";
 
 interface SheetState {
   ok: true;
   /** what this script version supports (absent before version 3) */
   features?: Feature[];
-  prefs: { profile?: Profile; alerts?: AlertSettings };
+  prefs: { profile?: Profile; alerts?: AlertSettings; favorites?: Favorite[]; notifications?: NotificationSettings };
   entries: Row[];
   weights?: Row[];
   dailyTotals?: Row[];
@@ -82,6 +90,8 @@ export const passcodeStore = createStore<string>("calorie-tracker:passcode");
 export const unlockedStore = createStore<boolean>("calorie-tracker:unlocked");
 
 export const usePendingCount = () => outboxStore.useValue()?.length ?? 0;
+/** What the deployed Google script supports (null until the first sync). */
+export const useSheetFeatures = () => sheetFeaturesStore.useValue();
 
 function supports(feature: Feature) {
   return (sheetFeaturesStore.get() ?? []).includes(feature);
@@ -275,6 +285,10 @@ function queueLocalDataMissingFrom(sheet: SheetState) {
   const alerts = alertsStore.get();
   if (profile && !sheet.prefs.profile) ops.push({ type: "setPref", key: "profile", value: profile });
   if (alerts && !sheet.prefs.alerts) ops.push({ type: "setPref", key: "alerts", value: alerts });
+  const favorites = favoritesStore.get();
+  if (favorites && !sheet.prefs.favorites) ops.push({ type: "setPref", key: "favorites", value: favorites });
+  const notifications = notificationSettingsStore.get();
+  if (notifications && !sheet.prefs.notifications) ops.push({ type: "setPref", key: "notifications", value: notifications });
   const sheetIds = new Set(sheet.entries.map((e) => String(e.id)));
   for (const entry of withinRetention(entriesStore.get() ?? [], dayKey(new Date()))) {
     if (!sheetIds.has(entry.id)) ops.push({ type: "upsertEntry", entry });
@@ -355,6 +369,8 @@ export function reconcileDailyTotals() {
 function applySheetState(sheet: SheetState, include: { myFoods: boolean; dailyTotals: boolean; height: boolean }) {
   setIfChanged(profileStore, sheet.prefs.profile ?? null);
   setIfChanged(alertsStore, sheet.prefs.alerts ?? null);
+  setIfChanged(favoritesStore, sheet.prefs.favorites ?? null);
+  setIfChanged(notificationSettingsStore, sheet.prefs.notifications ?? null);
   const entries = sheet.entries.map(toEntry).filter((e): e is FoodEntry => e !== null);
   setIfChanged(entriesStore, withinRetention(entries, dayKey(new Date())));
 
@@ -393,11 +409,15 @@ function replayOnDevice(ops: SyncOp[]) {
   let photos = myFoodPhotosStore.get();
   let profile = profileStore.get();
   let alerts = alertsStore.get();
+  let favorites = favoritesStore.get();
+  let notifications = notificationSettingsStore.get();
   for (const op of ops) {
     switch (op.type) {
       case "setPref":
         if (op.key === "profile") profile = op.value;
-        else alerts = op.value;
+        else if (op.key === "alerts") alerts = op.value;
+        else if (op.key === "favorites") favorites = op.value;
+        else if (op.key === "notifications") notifications = op.value;
         break;
       case "upsertEntry":
         entries = upsert(entries, op.entry, (e) => e.id === op.entry.id);
@@ -439,6 +459,8 @@ function replayOnDevice(ops: SyncOp[]) {
   setIfChanged(myFoodPhotosStore, photos);
   setIfChanged(profileStore, profile);
   setIfChanged(alertsStore, alerts);
+  setIfChanged(favoritesStore, favorites);
+  setIfChanged(notificationSettingsStore, notifications);
 }
 
 const num = (v: string | number | undefined) => (v === undefined || v === "" ? undefined : Number(v));
@@ -541,6 +563,9 @@ export function lockAndClearDevice(): boolean {
     dailyTotalsStore,
     myFoodsStore,
     myFoodPhotosStore,
+    favoritesStore,
+    notificationSettingsStore,
+    deviceIdStore,
     outboxStore,
     linkedStore,
     sheetFeaturesStore,

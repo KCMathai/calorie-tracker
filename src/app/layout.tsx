@@ -18,12 +18,19 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: { default: "Calorie Tracker", template: "%s · Calorie Tracker" },
   description: "Track your daily calories and stay on target.",
+  applicationName: "Calorie Tracker",
+  // iPhone: open full-screen when launched from the Home Screen.
+  appleWebApp: { capable: true, title: "Calories", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f7f8f6" },
+    { media: "(prefers-color-scheme: dark)", color: "#0b0d0b" },
+  ],
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

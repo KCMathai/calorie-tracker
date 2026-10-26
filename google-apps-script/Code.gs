@@ -12,12 +12,14 @@
  *   MyFoods     — foods you taught the photo recogniser (kept forever)
  *   MyFoodPhotos — visual fingerprints of your photos of those foods (kept forever)
  *
+ * Phone reminders: run `setupNotifications` once (it checks hourly via notifyTick).
+ *
  * After pasting a new version of this file: Deploy → Manage deployments → ✏️ Edit →
  * Version: New version → Deploy (the web app URL stays the same).
  */
 
 /** Data the app can ask for. The app holds back changes for anything missing here. */
-var FEATURES = ['myFoods', 'dailyTotals', 'height'];
+var FEATURES = ['myFoods', 'dailyTotals', 'height', 'notifications'];
 
 var LOG_RETENTION_DAYS = 30;
 
@@ -151,7 +153,7 @@ function applyOp_(op) {
   return true;
 }
 
-function readState_() {
+function readPrefs_() {
   var prefs = {};
   readObjects_(SHEETS.prefs).forEach(function (row) {
     try {
@@ -160,6 +162,11 @@ function readState_() {
       // Ignore a hand-edited cell that isn't valid JSON.
     }
   });
+  return prefs;
+}
+
+function readState_() {
+  var prefs = readPrefs_();
   return {
     ok: true,
     features: FEATURES,
@@ -170,6 +177,80 @@ function readState_() {
     myFoods: readObjects_(SHEETS.myFoods),
     myFoodPhotos: readObjects_(SHEETS.myFoodPhotos),
   };
+}
+
+// ---------------------------------------------------------------- phone notifications
+
+/**
+ * Run once from the editor to turn on phone reminders: checks about once an
+ * hour whether a reminder is due. (Google will ask permission to "connect to an
+ * external service" — that's this script calling your app.) Safe to run again.
+ */
+function setupNotifications() {
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'notifyTick') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('notifyTick').timeBased().everyHours(1).create();
+  Logger.log('Hourly reminder check scheduled.');
+  notifyTick();
+}
+
+/** Asks the app whether any reminder is due now; it sends them and reports back. */
+function notifyTick() {
+  var prefs = readPrefs_();
+  var appUrl = prefs.appUrl;
+  var hasDevices = Object.keys(prefs).some(function (k) {
+    return k.indexOf('push-') === 0 && prefs[k];
+  });
+  if (!appUrl || !hasDevices || !prefs.notifications) {
+    Logger.log('Nothing to do: notifications are not turned on in the app yet.');
+    return;
+  }
+
+  // Only recent food is needed (today in any time zone).
+  var since = Utilities.formatDate(new Date(Date.now() - 2 * 86400000), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  var entries = readObjects_(SHEETS.food)
+    .filter(function (e) {
+      return String(e.date) >= since;
+    })
+    .map(function (e) {
+      return { date: e.date, meal: e.meal, calories: e.calories };
+    });
+
+  var secret = PropertiesService.getScriptProperties().getProperty('SECRET');
+  var res = UrlFetchApp.fetch(String(appUrl).replace(/\/$/, '') + '/api/notify', {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify({ secret: secret, prefs: prefs, entries: entries }),
+    muteHttpExceptions: true,
+  });
+  var data;
+  try {
+    data = JSON.parse(res.getContentText());
+  } catch (e) {
+    Logger.log('Unexpected answer from the app (HTTP ' + res.getResponseCode() + ').');
+    return;
+  }
+  if (!data.ok) {
+    Logger.log('The app reported: ' + data.error);
+    return;
+  }
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    if (data.sent && data.sent.length) {
+      var log = prefs['notify-sent'];
+      var keys = log && log.date === data.date ? log.keys.concat(data.sent) : data.sent;
+      upsertRow_(SHEETS.prefs, 'notify-sent', { key: 'notify-sent', value: JSON.stringify({ date: data.date, keys: keys }), updatedAt: Date.now() });
+    }
+    (data.gone || []).forEach(function (key) {
+      deleteRow_(SHEETS.prefs, key); // that device turned notifications off or was reset
+    });
+  } finally {
+    lock.releaseLock();
+  }
+  Logger.log('Sent: ' + (data.sent.length ? data.sent.join(', ') : 'nothing due'));
 }
 
 // ---------------------------------------------------------------- cleanup

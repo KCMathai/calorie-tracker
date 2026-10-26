@@ -1,19 +1,24 @@
 "use client";
 
+import { toggleFavorite } from "@/lib/actions";
 import { MEALS, totals, type FoodEntry } from "@/lib/entries";
+import { favoritesStore, findFavorite } from "@/lib/favorites";
 
-/** Entries grouped by meal. Pass onEdit/onDelete to show action buttons. */
+/** Entries grouped by meal. Pass onEdit/onDelete to show action buttons; `favorites` adds a ☆ toggle. */
 export function MealList({
   entries,
   onEdit,
   onDelete,
+  favorites: showFavorites,
   emptyText = "Nothing logged yet.",
 }: {
   entries: FoodEntry[];
   onEdit?: (entry: FoodEntry) => void;
   onDelete?: (entry: FoodEntry) => void;
+  favorites?: boolean;
   emptyText?: string;
 }) {
+  const favorites = favoritesStore.useValue();
   if (entries.length === 0) return <p className="text-sm text-muted">{emptyText}</p>;
 
   return (
@@ -39,6 +44,9 @@ export function MealList({
                     </p>
                   </div>
                   <span className="tabular-nums">{e.calories.toLocaleString()}</span>
+                  {showFavorites && (
+                    <FavoriteButton entry={e} isFavorite={!!findFavorite(favorites, e)} />
+                  )}
                   {onEdit && (
                     <button type="button" onClick={() => onEdit(e)} className="icon-btn" aria-label={`Edit ${e.name}`}>
                       ✏️
@@ -56,6 +64,21 @@ export function MealList({
         );
       })}
     </div>
+  );
+}
+
+function FavoriteButton({ entry, isFavorite }: { entry: FoodEntry; isFavorite: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={() => toggleFavorite(entry)}
+      className="icon-btn"
+      aria-pressed={isFavorite}
+      aria-label={isFavorite ? `Remove ${entry.name} from favourites` : `Add ${entry.name} to favourites`}
+      title={isFavorite ? "Remove from favourites" : "Add to favourites"}
+    >
+      <span className={isFavorite ? "text-amber-500" : "text-muted"}>{isFavorite ? "★" : "☆"}</span>
+    </button>
   );
 }
 

@@ -9,6 +9,7 @@ import { useNow } from "@/lib/useNow";
 import { AlertBanner } from "./AlertBanner";
 import { FoodForm } from "./FoodForm";
 import { MealList } from "./MealList";
+import { QuickAdd } from "./QuickAdd";
 
 function mealForHour(hour: number): Meal {
   if (hour < 11) return "breakfast";
@@ -67,6 +68,8 @@ export function LogView() {
 
       {date === today && <AlertBanner eaten={eaten} target={profile.calorieTarget} />}
 
+      {!editing && <QuickAdd key={date} date={date} defaultMeal={mealForHour(now.getHours())} />}
+
       <section className="card">
         {editing ? (
           <>
@@ -110,6 +113,7 @@ export function LogView() {
         </span>
       </div>
       <MealList
+        favorites
         entries={dayEntries}
         onEdit={(e) => {
           setEditing(e);

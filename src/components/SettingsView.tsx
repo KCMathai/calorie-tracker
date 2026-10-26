@@ -2,8 +2,10 @@
 
 import { profileStore } from "@/lib/profile";
 import { AlertSettingsForm } from "./AlertSettingsForm";
+import { FavoritesSettings } from "./FavoritesSettings";
 import { GoalForm } from "./GoalForm";
 import { MyFoodsSettings } from "./MyFoodsSettings";
+import { NotificationSettingsCard } from "./NotificationSettings";
 import { SyncSettings } from "./SyncSettings";
 
 export function SettingsView() {
@@ -19,6 +21,8 @@ export function SettingsView() {
       </header>
       <GoalForm initial={profile} />
       <AlertSettingsForm />
+      <NotificationSettingsCard />
+      <FavoritesSettings />
       <MyFoodsSettings />
       <SyncSettings />
     </div>

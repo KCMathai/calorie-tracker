@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { lockAndClearDevice, syncNow, usePendingCount, useSheetNeedsScriptUpdate, useSyncStatus, type SyncState } from "@/lib/sync";
+import { deviceIdStore } from "@/lib/notifications";
+import { currentSubscription, pushSupported } from "@/lib/push";
+import { enqueue, lockAndClearDevice, syncNow, usePendingCount, useSheetNeedsScriptUpdate, useSyncStatus, type SyncState } from "@/lib/sync";
 
 export const STATUS_TEXT: Record<SyncState, string> = {
   idle: "Checking…",
@@ -53,9 +55,21 @@ export function SyncSettings() {
         <button
           type="button"
           className="btn-secondary !py-2"
-          onClick={() => {
+          onClick={async () => {
             setLockError(null);
             if (!confirm("Lock the app on this device? Your data is removed from this device (it stays in your Google Sheet) and the passcode is needed to open it again.")) return;
+            // A locked device shouldn't keep receiving reminders.
+            try {
+              const sub = pushSupported() ? await currentSubscription() : null;
+              const id = deviceIdStore.get();
+              if (sub) await sub.unsubscribe();
+              if (sub && id) {
+                enqueue({ type: "setPref", key: `push-${id}`, value: null });
+                await syncNow();
+              }
+            } catch {
+              // If this fails the sheet removes the device the next time a reminder can't be delivered.
+            }
             if (!lockAndClearDevice()) setLockError("Some changes haven't reached your sheet yet. Connect to the internet, tap “Sync now”, then try again.");
           }}
         >
