@@ -10,6 +10,7 @@ import { GoalForm } from "./GoalForm";
 import { MealList } from "./MealList";
 import { ProgressRing } from "./ProgressRing";
 import { SyncBadge } from "./SyncBadge";
+import { WaterCard } from "./WaterCard";
 
 export function TodayView() {
   const now = useNow();
@@ -66,6 +67,8 @@ export function TodayView() {
         <MacroBar label="Fat" value={sum.fat} goal={macroGoal.fat} color="#ec4899" />
         <p className="text-xs text-muted">Goals assume a balanced 25 / 50 / 25 split. Only foods with macros entered count here.</p>
       </section>
+
+      <WaterCard date={dayKey(now)} />
 
       <div className="flex items-center justify-between">
         <h2 className="font-medium">Today&apos;s food</h2>

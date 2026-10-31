@@ -2,6 +2,7 @@ import { alertsStore, type AlertSettings } from "./alerts";
 import { dayKey, entriesStore, type FoodEntry, type NewFoodEntry } from "./entries";
 import { favoritesStore, findFavorite, type Favorite } from "./favorites";
 import { notificationSettingsStore, type NotificationSettings } from "./notifications";
+import { waterGoal, waterSettingsStore, waterStore, type WaterDay, type WaterSettings } from "./water";
 import { profileStore } from "./profile";
 import { enqueue, refreshDailyTotal } from "./sync";
 import type { Profile } from "./types";
@@ -108,6 +109,26 @@ export function toggleFavorite(food: Omit<Favorite, "id" | "createdAt">): boolea
 
 export function removeFavorite(id: string) {
   saveFavorites((favoritesStore.get() ?? []).filter((f) => f.id !== id));
+}
+
+// ---------------------------------------------------------------- water
+
+/** Adds (or with a negative amount, removes) water for a day; never goes below zero. */
+export function addWater(date: string, ml: number) {
+  const all = waterStore.get() ?? [];
+  const existing = all.find((w) => w.date === date);
+  const goal = waterGoal(waterSettingsStore.get(), profileStore.get());
+  const day: WaterDay = { date, ml: Math.max(0, (existing?.ml ?? 0) + ml), goal: existing && date !== dayKey(new Date()) ? existing.goal : goal };
+  waterStore.set([...all.filter((w) => w.date !== date), day].sort((a, b) => (a.date < b.date ? -1 : 1)));
+  enqueue({ type: "upsertWater", day });
+}
+
+export function saveWaterSettings(settings: WaterSettings) {
+  waterSettingsStore.set(settings);
+  enqueue({ type: "setPref", key: "water", value: settings });
+  // Today's row records today's goal.
+  const today = dayKey(new Date());
+  if ((waterStore.get() ?? []).some((w) => w.date === today)) addWater(today, 0);
 }
 
 // ---------------------------------------------------------------- notifications

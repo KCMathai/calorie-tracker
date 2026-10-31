@@ -79,6 +79,7 @@ so a newer app never breaks syncing with an older script.
 | FoodLog | Every food entry | 30 days — older rows are deleted nightly around 3 AM |
 | Weight | Weigh-ins, with optional height | Forever |
 | DailyTotals | One row per day: total calories, protein, carbs, fat and that day's target | Forever |
+| Water | One row per day: water drunk (ml) and that day's goal | Forever |
 | MyFoods | Foods you taught the photo recogniser (name, serving, calories, macros) | Forever |
 | MyFoodPhotos | A compact visual fingerprint of each photo of those foods (not the photo itself) | Forever |
 

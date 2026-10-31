@@ -8,6 +8,7 @@ import { myFoodPhotosStore, myFoodsStore, type MyFood, type MyFoodPhoto } from "
 import { profileStore } from "./profile";
 import { createStore } from "./store";
 import type { Profile } from "./types";
+import { waterSettingsStore, waterStore, type WaterDay, type WaterSettings } from "./water";
 import { weightsStore, type WeightEntry } from "./weights";
 
 /**
@@ -27,6 +28,7 @@ export type SyncOp =
   | { type: "setPref"; key: "alerts"; value: AlertSettings }
   | { type: "setPref"; key: "favorites"; value: Favorite[] }
   | { type: "setPref"; key: "notifications"; value: NotificationSettings }
+  | { type: "setPref"; key: "water"; value: WaterSettings }
   /** where the app lives, so the sheet's hourly reminder check can reach it */
   | { type: "setPref"; key: "appUrl"; value: string }
   /** one per device; null removes it */
@@ -40,20 +42,28 @@ export type SyncOp =
   | { type: "upsertMyFoodPhoto"; photo: MyFoodPhoto }
   | { type: "deleteMyFoodPhoto"; id: string }
   | { type: "upsertDailyTotal"; total: DailyTotal }
-  | { type: "deleteDailyTotal"; date: string };
+  | { type: "deleteDailyTotal"; date: string }
+  | { type: "upsertWater"; day: WaterDay };
 
 type QueuedOp = SyncOp & { opId?: string };
 
 type Row = Record<string, string | number>;
 
 /** Things a newer Apps Script can store. */
-type Feature = "myFoods" | "dailyTotals" | "height" | "notifications";
+type Feature = "myFoods" | "dailyTotals" | "height" | "notifications" | "water";
 
 interface SheetState {
   ok: true;
   /** what this script version supports (absent before version 3) */
   features?: Feature[];
-  prefs: { profile?: Profile; alerts?: AlertSettings; favorites?: Favorite[]; notifications?: NotificationSettings };
+  prefs: {
+    profile?: Profile;
+    alerts?: AlertSettings;
+    favorites?: Favorite[];
+    notifications?: NotificationSettings;
+    water?: WaterSettings;
+  };
+  water?: Row[];
   entries: Row[];
   weights?: Row[];
   dailyTotals?: Row[];
@@ -72,6 +82,8 @@ function featureOf(op: SyncOp): Feature | null {
     case "upsertDailyTotal":
     case "deleteDailyTotal":
       return "dailyTotals";
+    case "upsertWater":
+      return "water";
     case "upsertWeight":
       // Older scripts would silently drop the height, so hold back weigh-ins that have one.
       return op.weight.heightCm !== undefined ? "height" : null;
@@ -250,6 +262,7 @@ async function run() {
     // Upload what was kept on this device while the script couldn't store it.
     if (added.includes("myFoods")) queueLocalMyFoodsMissingFrom(data);
     if (added.includes("dailyTotals")) queueLocalDailyTotalsMissingFrom(data);
+    if (added.includes("water")) queueLocalWaterMissingFrom(data);
     if (added.includes("height")) {
       const queued = new Set((outboxStore.get() ?? []).flatMap((op) => (op.type === "upsertWeight" ? [op.weight.id] : [])));
       queue(
@@ -268,6 +281,7 @@ async function run() {
     applySheetState(data, {
       myFoods: supports("myFoods") && !waiting("myFoods"),
       dailyTotals: supports("dailyTotals") && !waiting("dailyTotals"),
+      water: supports("water") && !waiting("water"),
       height: supports("height") && !waiting("height"),
     });
     // Changes still waiting (for a script update) must survive the sheet's copy replacing ours.
@@ -289,6 +303,8 @@ function queueLocalDataMissingFrom(sheet: SheetState) {
   if (favorites && !sheet.prefs.favorites) ops.push({ type: "setPref", key: "favorites", value: favorites });
   const notifications = notificationSettingsStore.get();
   if (notifications && !sheet.prefs.notifications) ops.push({ type: "setPref", key: "notifications", value: notifications });
+  const waterSettings = waterSettingsStore.get();
+  if (waterSettings && !sheet.prefs.water) ops.push({ type: "setPref", key: "water", value: waterSettings });
   const sheetIds = new Set(sheet.entries.map((e) => String(e.id)));
   for (const entry of withinRetention(entriesStore.get() ?? [], dayKey(new Date()))) {
     if (!sheetIds.has(entry.id)) ops.push({ type: "upsertEntry", entry });
@@ -300,6 +316,14 @@ function queueLocalDataMissingFrom(sheet: SheetState) {
   queue(ops);
   queueLocalMyFoodsMissingFrom(sheet);
   queueLocalDailyTotalsMissingFrom(sheet);
+  queueLocalWaterMissingFrom(sheet);
+}
+
+/** Uploads water days that only exist on this device. */
+function queueLocalWaterMissingFrom(sheet: SheetState) {
+  const dates = new Set((sheet.water ?? []).map((w) => String(w.date)));
+  for (const op of outboxStore.get() ?? []) if (op.type === "upsertWater") dates.add(op.day.date);
+  queue((waterStore.get() ?? []).filter((w) => !dates.has(w.date)).map((day) => ({ type: "upsertWater", day })));
 }
 
 /** Uploads taught foods that only exist on this device. */
@@ -366,11 +390,21 @@ export function reconcileDailyTotals() {
 
 // ---------------------------------------------------------------- applying the sheet
 
-function applySheetState(sheet: SheetState, include: { myFoods: boolean; dailyTotals: boolean; height: boolean }) {
+function applySheetState(sheet: SheetState, include: { myFoods: boolean; dailyTotals: boolean; height: boolean; water: boolean }) {
   setIfChanged(profileStore, sheet.prefs.profile ?? null);
   setIfChanged(alertsStore, sheet.prefs.alerts ?? null);
   setIfChanged(favoritesStore, sheet.prefs.favorites ?? null);
   setIfChanged(notificationSettingsStore, sheet.prefs.notifications ?? null);
+  setIfChanged(waterSettingsStore, sheet.prefs.water ?? null);
+  if (include.water) {
+    setIfChanged(
+      waterStore,
+      (sheet.water ?? [])
+        .map(toWaterDay)
+        .filter((w): w is WaterDay => w !== null)
+        .sort((a, b) => (a.date < b.date ? -1 : 1)),
+    );
+  }
   const entries = sheet.entries.map(toEntry).filter((e): e is FoodEntry => e !== null);
   setIfChanged(entriesStore, withinRetention(entries, dayKey(new Date())));
 
@@ -411,6 +445,8 @@ function replayOnDevice(ops: SyncOp[]) {
   let alerts = alertsStore.get();
   let favorites = favoritesStore.get();
   let notifications = notificationSettingsStore.get();
+  let waterSettings = waterSettingsStore.get();
+  let water = waterStore.get();
   for (const op of ops) {
     switch (op.type) {
       case "setPref":
@@ -418,6 +454,7 @@ function replayOnDevice(ops: SyncOp[]) {
         else if (op.key === "alerts") alerts = op.value;
         else if (op.key === "favorites") favorites = op.value;
         else if (op.key === "notifications") notifications = op.value;
+        else if (op.key === "water") waterSettings = op.value;
         break;
       case "upsertEntry":
         entries = upsert(entries, op.entry, (e) => e.id === op.entry.id);
@@ -436,6 +473,9 @@ function replayOnDevice(ops: SyncOp[]) {
         break;
       case "deleteDailyTotal":
         totals = remove(totals, (t) => t.date === op.date);
+        break;
+      case "upsertWater":
+        water = upsert(water, op.day, (w) => w.date === op.day.date);
         break;
       case "upsertMyFood":
         foods = upsert(foods, op.food, (f) => f.id === op.food.id);
@@ -461,6 +501,13 @@ function replayOnDevice(ops: SyncOp[]) {
   setIfChanged(alertsStore, alerts);
   setIfChanged(favoritesStore, favorites);
   setIfChanged(notificationSettingsStore, notifications);
+  setIfChanged(waterSettingsStore, waterSettings);
+  setIfChanged(waterStore, water ? [...water].sort((a, b) => (a.date < b.date ? -1 : 1)) : water);
+}
+
+function toWaterDay(row: Row): WaterDay | null {
+  if (!row.date) return null;
+  return { date: String(row.date), ml: Number(row.ml) || 0, goal: Number(row.goal) || 0 };
 }
 
 const num = (v: string | number | undefined) => (v === undefined || v === "" ? undefined : Number(v));
@@ -566,6 +613,8 @@ export function lockAndClearDevice(): boolean {
     favoritesStore,
     notificationSettingsStore,
     deviceIdStore,
+    waterStore,
+    waterSettingsStore,
     outboxStore,
     linkedStore,
     sheetFeaturesStore,

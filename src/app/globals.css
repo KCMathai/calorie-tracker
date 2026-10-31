@@ -71,4 +71,49 @@ body {
   .icon-btn {
     @apply grid size-9 shrink-0 place-items-center rounded-lg text-lg hover:bg-[var(--surface-hover)] disabled:opacity-30 disabled:hover:bg-transparent;
   }
+  /* Printable report */
+  .report-table {
+    @apply w-full border-collapse text-sm tabular-nums;
+  }
+  .report-table th,
+  .report-table td {
+    @apply border-b border-[var(--border)] px-2 py-1.5 text-left align-top;
+  }
+  .report-table thead th {
+    @apply text-xs font-medium text-[var(--muted)];
+  }
+  .report-table tbody th {
+    @apply w-2/5 font-medium;
+  }
+}
+
+@media print {
+  /* Always print light, without the app's navigation and buttons. */
+  :root {
+    --background: #ffffff;
+    --foreground: #000000;
+    --surface: #ffffff;
+    --border: #cccccc;
+    --muted: #555555;
+  }
+  nav,
+  .no-print,
+  nextjs-portal {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+    color: #000;
+  }
+  main {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+  .report-section,
+  .report-table tr {
+    break-inside: avoid;
+  }
+  @page {
+    margin: 14mm;
+  }
 }

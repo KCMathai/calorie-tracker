@@ -9,6 +9,7 @@
  *   FoodLog     — food entries (rows older than 30 days are deleted nightly)
  *   Weight      — weigh-ins with optional height (kept forever)
  *   DailyTotals — one row per day: calories, macros and that day's target (kept forever)
+ *   Water       — one row per day: water drunk (ml) and that day's goal (kept forever)
  *   MyFoods     — foods you taught the photo recogniser (kept forever)
  *   MyFoodPhotos — visual fingerprints of your photos of those foods (kept forever)
  *
@@ -19,7 +20,7 @@
  */
 
 /** Data the app can ask for. The app holds back changes for anything missing here. */
-var FEATURES = ['myFoods', 'dailyTotals', 'height', 'notifications'];
+var FEATURES = ['myFoods', 'dailyTotals', 'height', 'notifications', 'water'];
 
 var LOG_RETENTION_DAYS = 30;
 
@@ -40,6 +41,7 @@ var SHEETS = {
     headers: ['id', 'name', 'serving', 'calories', 'protein', 'carbs', 'fat', 'createdAt'],
   },
   myFoodPhotos: { name: 'MyFoodPhotos', headers: ['id', 'foodId', 'embedding', 'createdAt'] },
+  water: { name: 'Water', headers: ['id', 'date', 'ml', 'goal', 'updatedAt'] },
 };
 
 var NUMBER_FIELDS = {
@@ -53,6 +55,8 @@ var NUMBER_FIELDS = {
   heightCm: true,
   target: true,
   entries: true,
+  ml: true,
+  goal: true,
 };
 
 // ---------------------------------------------------------------- setup
@@ -147,6 +151,9 @@ function applyOp_(op) {
     case 'deleteDailyTotal':
       deleteRow_(SHEETS.dailyTotals, op.date);
       break;
+    case 'upsertWater':
+      upsertRow_(SHEETS.water, op.day.date, Object.assign({ id: op.day.date, updatedAt: Date.now() }, op.day));
+      break;
     default:
       return false;
   }
@@ -174,6 +181,7 @@ function readState_() {
     entries: readObjects_(SHEETS.food),
     weights: readObjects_(SHEETS.weight),
     dailyTotals: readObjects_(SHEETS.dailyTotals),
+    water: readObjects_(SHEETS.water),
     myFoods: readObjects_(SHEETS.myFoods),
     myFoodPhotos: readObjects_(SHEETS.myFoodPhotos),
   };

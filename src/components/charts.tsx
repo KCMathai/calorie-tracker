@@ -49,8 +49,34 @@ export interface DayBar {
   logged: boolean;
 }
 
-export function CalorieChart({ days, target }: { days: DayBar[]; target: number }) {
+/**
+ * Daily bars against a reference line. "limit" mode (calories) marks days over
+ * the line with ▲; "goal" mode (water) marks days that reached it with ✓.
+ * Bars are always one colour — the marker and text carry the meaning.
+ */
+export function CalorieChart({
+  days,
+  target,
+  unit = "kcal",
+  mode = "limit",
+  label = "Calories per day compared with your target",
+}: {
+  days: DayBar[];
+  target: number;
+  unit?: string;
+  mode?: "limit" | "goal";
+  label?: string;
+}) {
   const [ref, width] = useWidth<HTMLDivElement>();
+  const marked = (v: number) => (mode === "limit" ? v > target : v >= target);
+  const describe = (v: number) =>
+    mode === "limit"
+      ? v > target
+        ? `▲ ${fmt(v - target)} over`
+        : `${fmt(target - v)} under`
+      : v >= target
+        ? "✓ goal reached"
+        : `${fmt(target - v)} ${unit} to go`;
   const [active, setActive] = useState<number | null>(null);
 
   const height = 190;
@@ -72,7 +98,7 @@ export function CalorieChart({ days, target }: { days: DayBar[]; target: number 
   return (
     <div ref={ref} className="relative w-full" onPointerLeave={() => setActive(null)}>
       {width > 0 && (
-        <svg width={width} height={height} role="group" aria-label="Calories per day compared with your target">
+        <svg width={width} height={height} role="group" aria-label={label}>
           {ticks.map((t) => (
             <g key={t}>
               <line x1={m.left} x2={width - m.right} y1={y(t)} y2={y(t)} stroke="var(--grid)" strokeWidth={1} />
@@ -84,7 +110,7 @@ export function CalorieChart({ days, target }: { days: DayBar[]; target: number 
 
           {days.map((d, i) => {
             const cx = m.left + band * i + band / 2;
-            const over = d.calories > target;
+            const over = d.logged && marked(d.calories);
             const h = d.logged ? Math.max(y(0) - y(d.calories), 2) : 0;
             const top = y(0) - h;
             const r = Math.min(4, h, barW / 2);
@@ -93,7 +119,7 @@ export function CalorieChart({ days, target }: { days: DayBar[]; target: number 
                 key={d.date}
                 tabIndex={0}
                 role="img"
-                aria-label={`${d.title}: ${d.logged ? `${d.calories} kcal${over ? `, ${d.calories - target} over target` : ""}` : "nothing logged"}`}
+                aria-label={`${d.title}: ${d.logged ? `${d.calories} ${unit}, ${describe(d.calories).replace(/^[▲✓] /, "")}` : "nothing logged"}`}
                 onPointerEnter={() => setActive(i)}
                 onFocus={() => setActive(i)}
                 onBlur={() => setActive(null)}
@@ -110,7 +136,7 @@ export function CalorieChart({ days, target }: { days: DayBar[]; target: number 
                 )}
                 {over && (
                   <text x={cx} y={top - 4} textAnchor="middle" className="fill-[var(--foreground)] text-[9px]" aria-hidden>
-                    ▲
+                    {mode === "limit" ? "▲" : "✓"}
                   </text>
                 )}
                 {i % labelEvery === 0 && (
@@ -126,7 +152,7 @@ export function CalorieChart({ days, target }: { days: DayBar[]; target: number 
           <line x1={m.left} x2={width - m.right + 2} y1={y(target)} y2={y(target)} stroke="var(--foreground)" strokeOpacity={0.55} strokeWidth={1.5} />
           <text x={width - m.right + 4} y={y(target)} className="fill-[var(--foreground)] text-[9px]">
             <tspan x={width - m.right + 4} dy="-0.2em">
-              Target
+              {mode === "limit" ? "Target" : "Goal"}
             </tspan>
             <tspan x={width - m.right + 4} dy="1.1em" className="tabular-nums">
               {fmt(target)}
@@ -137,10 +163,10 @@ export function CalorieChart({ days, target }: { days: DayBar[]; target: number 
 
       {activeDay && active !== null && (
         <Tooltip x={m.left + band * active + band / 2} y={activeDay.logged ? y(activeDay.calories) : y(0)} width={width}>
-          <p className="font-semibold tabular-nums">{activeDay.logged ? `${fmt(activeDay.calories)} kcal` : "Nothing logged"}</p>
+          <p className="font-semibold tabular-nums">{activeDay.logged ? `${fmt(activeDay.calories)} ${unit}` : "Nothing logged"}</p>
           <p className="text-muted">
             {activeDay.title}
-            {activeDay.logged && (activeDay.calories > target ? ` · ▲ ${fmt(activeDay.calories - target)} over` : ` · ${fmt(target - activeDay.calories)} under`)}
+            {activeDay.logged && ` · ${describe(activeDay.calories)}`}
           </p>
         </Tooltip>
       )}

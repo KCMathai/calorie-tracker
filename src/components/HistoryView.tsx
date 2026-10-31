@@ -9,6 +9,7 @@ import { CalorieChart, type DayBar } from "./charts";
 import { LongTermSection } from "./LongTermSection";
 import { MealList } from "./MealList";
 import { Stat } from "./Stat";
+import { WaterHistory } from "./WaterHistory";
 import { WeightSection } from "./WeightSection";
 
 const RANGES = [7, LOG_RETENTION_DAYS] as const;
@@ -120,6 +121,8 @@ export function HistoryView() {
         </ul>
         <p className="text-xs text-muted">Food logs are kept for {LOG_RETENTION_DAYS} days.</p>
       </section>
+
+      <WaterHistory today={today} range={range} />
 
       <LongTermSection today={today} />
 

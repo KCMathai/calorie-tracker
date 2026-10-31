@@ -41,6 +41,11 @@ A personal calorie counter and diet tracker. Mobile-first web app.
   an empty `/api/sync`). A `bad_passcode` sync locks the device again. "Lock app on this device" clears all local data.
 - **Favourites & quick add:** favourites live in preferences (`setPref favorites`, `src/lib/favorites.ts`); the Log
   screen's Quick add shows favourites and recent foods (from the last 30 days) for one-tap logging with Undo.
+- **Water:** `src/lib/water.ts` — one row per day (ml + that day's goal) in the sheet's Water tab (feature `water`,
+  Apps Script v5), goal in preference `water` (suggested 35 ml/kg). Today card buttons, History chart (shared
+  `CalorieChart` in "goal" mode with ✓ markers).
+- **Export:** `src/lib/exportData.ts` builds CSVs on the device (BOM for Excel, formula-safe cells); `/report` is a
+  printable summary (print CSS in `globals.css` hides nav and `.no-print`, forces light colours).
 - **Installable app:** `src/app/manifest.ts`, icons drawn in code (`src/app/icon.tsx`, `apple-icon.tsx`,
   `src/components/AppIconArt.tsx`). Phone guide: `docs/PHONE-SETUP.md`.
 - **Phone notifications:** `public/sw.js` (never cached, see `next.config.ts` headers) shows pushes. Devices subscribe
