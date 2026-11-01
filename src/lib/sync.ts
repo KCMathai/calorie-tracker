@@ -321,7 +321,7 @@ function queueLocalDataMissingFrom(sheet: SheetState) {
 
 /** Uploads water days that only exist on this device. */
 function queueLocalWaterMissingFrom(sheet: SheetState) {
-  const dates = new Set((sheet.water ?? []).map((w) => String(w.date)));
+  const dates = new Set((sheet.water ?? []).map((w) => toDateKey(w.date)));
   for (const op of outboxStore.get() ?? []) if (op.type === "upsertWater") dates.add(op.day.date);
   queue((waterStore.get() ?? []).filter((w) => !dates.has(w.date)).map((day) => ({ type: "upsertWater", day })));
 }
@@ -347,7 +347,7 @@ function queueLocalMyFoodsMissingFrom(sheet: SheetState) {
 
 /** Uploads daily totals that only exist on this device. */
 function queueLocalDailyTotalsMissingFrom(sheet: SheetState) {
-  const dates = new Set((sheet.dailyTotals ?? []).map((t) => String(t.date)));
+  const dates = new Set((sheet.dailyTotals ?? []).map((t) => toDateKey(t.date)));
   for (const op of outboxStore.get() ?? []) if (op.type === "upsertDailyTotal") dates.add(op.total.date);
   queue((dailyTotalsStore.get() ?? []).filter((t) => !dates.has(t.date)).map((total) => ({ type: "upsertDailyTotal", total })));
 }
@@ -399,7 +399,7 @@ function applySheetState(sheet: SheetState, include: { myFoods: boolean; dailyTo
   if (include.water) {
     setIfChanged(
       waterStore,
-      (sheet.water ?? [])
+      latestPerDate(sheet.water ?? [])
         .map(toWaterDay)
         .filter((w): w is WaterDay => w !== null)
         .sort((a, b) => (a.date < b.date ? -1 : 1)),
@@ -419,7 +419,7 @@ function applySheetState(sheet: SheetState, include: { myFoods: boolean; dailyTo
   if (include.dailyTotals) {
     setIfChanged(
       dailyTotalsStore,
-      (sheet.dailyTotals ?? [])
+      latestPerDate(sheet.dailyTotals ?? [])
         .map(toDailyTotal)
         .filter((t): t is DailyTotal => t !== null)
         .sort((a, b) => (a.date < b.date ? -1 : 1)),
@@ -505,9 +505,34 @@ function replayOnDevice(ops: SyncOp[]) {
   setIfChanged(waterStore, water ? [...water].sort((a, b) => (a.date < b.date ? -1 : 1)) : water);
 }
 
+/**
+ * A sheet date as "YYYY-MM-DD". Older scripts could let Sheets turn the text into a real date,
+ * which arrives as e.g. "Sun Nov 01 2026 00:00:00 GMT+0530 (India Standard Time)".
+ */
+function toDateKey(value: string | number | undefined): string | null {
+  if (value === undefined || value === "") return null;
+  const text = String(value);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  const date = new Date(text);
+  return Number.isNaN(date.getTime()) ? null : dayKey(date);
+}
+
+/** One row per date (the most recently updated), in case the sheet holds duplicates. */
+function latestPerDate(rows: Row[]): Row[] {
+  const byDate = new Map<string, Row>();
+  for (const row of rows) {
+    const date = toDateKey(row.date);
+    if (!date) continue;
+    const prev = byDate.get(date);
+    if (!prev || (Number(row.updatedAt) || 0) >= (Number(prev.updatedAt) || 0)) byDate.set(date, { ...row, date });
+  }
+  return [...byDate.values()];
+}
+
 function toWaterDay(row: Row): WaterDay | null {
-  if (!row.date) return null;
-  return { date: String(row.date), ml: Number(row.ml) || 0, goal: Number(row.goal) || 0 };
+  const date = toDateKey(row.date);
+  if (!date) return null;
+  return { date, ml: Number(row.ml) || 0, goal: Number(row.goal) || 0 };
 }
 
 const num = (v: string | number | undefined) => (v === undefined || v === "" ? undefined : Number(v));
@@ -542,9 +567,10 @@ function toEntry(row: Row): FoodEntry | null {
 }
 
 function toDailyTotal(row: Row): DailyTotal | null {
-  if (!row.date || row.calories === undefined) return null;
+  const date = toDateKey(row.date);
+  if (!date || row.calories === undefined) return null;
   return {
-    date: String(row.date),
+    date,
     calories: Number(row.calories) || 0,
     protein: Number(row.protein) || 0,
     carbs: Number(row.carbs) || 0,

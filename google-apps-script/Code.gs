@@ -280,7 +280,7 @@ function cleanupOldLogs() {
     var rows = sheet.getRange(2, 1, lastRow - 1, width).getValues();
     var dateCol = SHEETS.food.headers.indexOf('date');
     var keep = rows.filter(function (r) {
-      return String(r[dateCol]) >= cutoffKey;
+      return cellText_(r[dateCol]) >= cutoffKey;
     });
     if (keep.length === rows.length) return;
     sheet.getRange(2, 1, lastRow - 1, width).clearContent();
@@ -326,19 +326,30 @@ function readObjects_(def) {
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return [];
   var rows = sheet.getRange(2, 1, lastRow - 1, def.headers.length).getValues();
+  // Earlier versions could leave several rows for one id: the last one wins.
+  var lastIndex = {};
+  rows.forEach(function (r, i) {
+    if (r[0] !== '') lastIndex[cellText_(r[0])] = i;
+  });
   return rows
-    .filter(function (r) {
-      return r[0] !== '';
+    .filter(function (r, i) {
+      return r[0] !== '' && lastIndex[cellText_(r[0])] === i;
     })
     .map(function (r) {
       var obj = {};
       def.headers.forEach(function (h, i) {
         var v = r[i];
         if (v === '' || v === null) return;
-        obj[h] = NUMBER_FIELDS[h] ? Number(v) : String(v);
+        obj[h] = NUMBER_FIELDS[h] ? Number(v) : cellText_(v);
       });
       return obj;
     });
+}
+
+/** A cell as text. Sheets sometimes turns "2026-11-01" into a date; this turns it back. */
+function cellText_(v) {
+  if (v instanceof Date) return Utilities.formatDate(v, SpreadsheetApp.getActive().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
+  return String(v);
 }
 
 function upsertRow_(def, id, obj) {
@@ -351,15 +362,22 @@ function upsertRow_(def, id, obj) {
     // Never let user text be treated as a formula.
     return /^[=+\-@]/.test(v) ? "'" + v : v;
   });
-  var index = findRow_(sheet, id);
-  if (index > 0) sheet.getRange(index, 1, 1, row.length).setValues([row]);
-  else sheet.appendRow(row);
+  var matches = findRows_(sheet, id);
+  var index = matches.length ? matches[0] : sheet.getLastRow() + 1;
+  if (index > sheet.getMaxRows()) sheet.insertRowsAfter(sheet.getMaxRows(), 1);
+  // Mark text cells as plain text before writing, so Sheets keeps "2026-11-01" as written.
+  def.headers.forEach(function (h, i) {
+    if (!NUMBER_FIELDS[h]) sheet.getRange(index, i + 1).setNumberFormat('@');
+  });
+  sheet.getRange(index, 1, 1, row.length).setValues([row]);
+  // Remove duplicates left by earlier versions (bottom-up, so row numbers stay valid).
+  for (var i = matches.length - 1; i >= 1; i--) sheet.deleteRow(matches[i]);
 }
 
 function deleteRow_(def, id) {
   var sheet = getSheet_(def);
-  var index = findRow_(sheet, id);
-  if (index > 0) sheet.deleteRow(index);
+  var matches = findRows_(sheet, id);
+  for (var i = matches.length - 1; i >= 0; i--) sheet.deleteRow(matches[i]);
 }
 
 /** Deletes every row whose `column` equals `value` (bottom-up, so row numbers stay valid). */
@@ -370,19 +388,26 @@ function deleteRowsWhere_(def, column, value) {
   var col = def.headers.indexOf(column) + 1;
   var values = sheet.getRange(2, col, lastRow - 1, 1).getValues();
   for (var i = values.length - 1; i >= 0; i--) {
-    if (String(values[i][0]) === String(value)) sheet.deleteRow(i + 2);
+    if (cellText_(values[i][0]) === String(value)) sheet.deleteRow(i + 2);
   }
+}
+
+/** 1-based row numbers (top to bottom) whose column A holds the id. */
+function findRows_(sheet, id) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  var ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  var found = [];
+  for (var i = 0; i < ids.length; i++) {
+    if (cellText_(ids[i][0]) === String(id)) found.push(i + 2);
+  }
+  return found;
 }
 
 /** 1-based row number for the id in column A, or -1. */
 function findRow_(sheet, id) {
-  var lastRow = sheet.getLastRow();
-  if (lastRow < 2) return -1;
-  var ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
-  for (var i = 0; i < ids.length; i++) {
-    if (String(ids[i][0]) === String(id)) return i + 2;
-  }
-  return -1;
+  var found = findRows_(sheet, id);
+  return found.length ? found[0] : -1;
 }
 
 function json_(obj) {
